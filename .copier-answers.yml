@@ -1,0 +1,14 @@
+# Changes here will be overwritten by Copier
+_commit: v0.2.0
+_src_path: gh:alan-turing-institute/python-project-template
+coc: our_coc
+email: rwood@turing.ac.uk
+full_name: Rosie Wood
+license: MIT
+min_python_version: '3.11'
+org: rwood-97
+project_name: eden
+project_short_description: A repo containing code related to fine-tuning Eden
+python_name: eden
+typing: no_typing
+url: https://github.com/rwood-97/eden

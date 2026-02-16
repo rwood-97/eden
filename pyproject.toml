@@ -25,7 +25,6 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Topic :: Scientific/Engineering",
-  "Typing :: Typed",
 ]
 dependencies = []
 
@@ -62,21 +61,7 @@ port.exclude_lines = [
   'if typing.TYPE_CHECKING:',
 ]
 
-[tool.mypy]
-files = ["src", "tests"]
-python_version = "3.11"
-show_error_codes = true
-warn_unreachable = true
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-check_untyped_defs = true
-strict = true
-enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 
-[[tool.mypy.overrides]]
-module = "eden.*"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
 
 [tool.ruff]
 src = ["src"]
@@ -116,4 +101,4 @@ unfixable = [
   "F401",   # Would remove unused imports
   "F841",   # Would remove unused variables
 ]
-flake8-unused-arguments.ignore-variadic-names = true  # allow unused *args/**kwargsisort.required-imports = ["from __future__ import annotations"]
+flake8-unused-arguments.ignore-variadic-names = true  # allow unused *args/**kwargs
