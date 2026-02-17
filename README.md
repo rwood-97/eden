@@ -4,24 +4,32 @@
 [![PyPI version][pypi-version]][pypi-link]
 [![PyPI platforms][pypi-platforms]][pypi-link]
 
-A repo containing code related to fine-tuning Eden
+A repo containing code related to fine-tuning Eden (a LLM for gardening advice).
 
 ## Installation
 
-```bash
-python -m pip install eden
-```
-
-From source:
+Clone the repo:
 ```bash
 git clone https://github.com/rwood-97/eden
 cd eden
-python -m pip install .
+```
+
+Create a virtual environment using uv:
+```bash
+uv venv --python=3.12
+source .venv/bin/activate
+```
+
+Then install the package:
+```
+uv sync --all-extras
 ```
 
 ## Scrapers
 
 Three scrapers collect data from the RHS website into JSONL files under `data/raw/`.
+
+You can use `python -m xxx` or `uv run xxx` to run the scrapers, where `xxx` is one of `eden.scraper.scrape_plants`, `eden.scraper.scrape_advice`, or `eden.scraper.scrape_pests`.
 
 ```bash
 # Plants — uses sitemaps + RHS JSON API (~306k plants)
@@ -53,6 +61,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
 
 Distributed under the terms of the [MIT license](LICENSE).
 
+## Disclaimer
+
+This work has been co-developed using Claude code and is based upon the [t0-1](https://github.com/alan-turing-institute/t0-1) repo.
 
 <!-- prettier-ignore-start -->
 [actions-badge]:            https://github.com/rwood-97/eden/workflows/CI/badge.svg
