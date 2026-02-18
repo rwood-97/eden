@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import time
+import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -190,6 +191,39 @@ def discover_urls_from_advice_api(
 
     logger.info("Discovered %d %s URLs", len(all_urls), label)
     return sorted(set(all_urls))
+
+
+def discover_urls_from_sitemap(
+    client: httpx.Client,
+    url: str,
+    url_filter: Callable[[str], bool],
+    label: str = "pages",
+) -> list[str]:
+    """Parse a sitemap XML and return matching URLs.
+
+    Args:
+        client: httpx Client to use.
+        url: Full URL of the sitemap XML.
+        url_filter: Predicate applied to each URL in the sitemap.
+        label: Label for log messages.
+    """
+    resp = fetch_with_retries(client, url)
+    if resp is None:
+        logger.error("Failed to fetch sitemap: %s", url)
+        return []
+
+    root = ET.fromstring(resp.text)
+    # Handle XML namespace — sitemap elements are usually namespaced
+    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    matching: list[str] = []
+
+    for loc in root.findall(".//sm:loc", ns):
+        page_url = loc.text.strip() if loc.text else ""
+        if page_url and url_filter(page_url):
+            matching.append(page_url)
+
+    logger.info("Sitemap %s: found %d %s URLs", url, len(matching), label)
+    return sorted(set(matching))
 
 
 # ---------------------------------------------------------------------------

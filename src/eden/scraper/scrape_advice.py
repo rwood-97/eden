@@ -1,13 +1,18 @@
-"""Scrape grow-your-own advice articles from the RHS website.
+"""Scrape gardening advice articles from the RHS website.
 
 Strategy:
-1. Discover article URLs via the RHS internal advice search API
-2. Fetch each page and parse the HTML content
-3. Write results as JSONL
+1. Discover article URLs via the RHS advice search API (denylist filter)
+2. Discover in-month and beginners-guide URLs from sitemap-general.xml
+3. Fetch each page and parse the HTML content
+4. Write results as JSONL with page_type classification
 
-The RHS advice search API at POST /api/advice/Search returns all advice
-articles with their URLs. We filter for grow-your-own guides which live at
-paths like /vegetables/{slug}/grow-your-own, /fruit/{slug}/grow-your-own, etc.
+The advice API returns ~1,400+ articles. We exclude pages already covered by
+the pests scraper and non-gardening content, capturing ~800+ useful pages:
+grow-your-own, growing-guide, pruning-guide, garden-design, plants/for-places,
+propagation, lawns, container-gardening, garden-jobs, and more.
+
+Pages not indexed in the advice API (in-month, beginners-guide) are discovered
+from sitemap-general.xml.
 
 Usage:
     python -m eden.scraper.scrape_advice
@@ -27,6 +32,7 @@ from bs4 import BeautifulSoup
 from eden.scraper import BASE_URL
 from eden.scraper.utils import (
     discover_urls_from_advice_api,
+    discover_urls_from_sitemap,
     make_client,
     scrape_loop,
 )
@@ -34,6 +40,45 @@ from eden.scraper.utils import (
 logger = logging.getLogger(__name__)
 
 DEFAULT_OUTPUT = Path("data/raw/advice.jsonl")
+
+SITEMAP_URL = f"{BASE_URL}/sitemap-general.xml"
+
+# Prefixes to exclude from the advice API — these are covered by other
+# scrapers or are not gardening advice content.
+EXCLUDED_PREFIXES = (
+    "/biodiversity/",
+    "/disease/",
+    "/problems/",
+    "/weeds/",
+    "/education-learning/",
+)
+
+# Prefixes to discover from the sitemap (not indexed in the advice API).
+SITEMAP_PREFIXES = (
+    "/advice/in-month/",
+    "/advice/beginners-guide/",
+)
+
+# Page type classification rules — checked in order, first match wins.
+_PAGE_TYPE_RULES: list[tuple[str, str]] = [
+    ("/grow-your-own", "grow-your-own"),
+    ("/growing-guide", "growing-guide"),
+    ("/pruning-guide", "pruning-guide"),
+    ("/garden-design", "garden-design"),
+    ("/in-month/", "in-month"),
+    ("/beginners-guide/", "beginners-guide"),
+    ("/plants/for-places/", "plants-for-places"),
+    ("/propagation/", "propagation"),
+    ("/garden-jobs/", "garden-jobs"),
+]
+
+
+def classify_page_type(url: str) -> str:
+    """Derive a page_type label from URL path patterns."""
+    for pattern, page_type in _PAGE_TYPE_RULES:
+        if pattern in url:
+            return page_type
+    return "other"
 
 
 def parse_advice_page(html: str, url: str) -> dict | None:
@@ -47,11 +92,19 @@ def parse_advice_page(html: str, url: str) -> dict | None:
         return None
     title = title_tag.get_text(strip=True)
 
-    # Determine category and slug from URL path
+    # Derive page_type, category, and slug from URL path
     path = url.replace(BASE_URL, "").strip("/")
     parts = path.split("/")
-    category = parts[0] if parts else "unknown"
-    slug = parts[1] if len(parts) >= 2 else "unknown"
+    page_type = classify_page_type(url)
+
+    # Use page_type as category when the URL structure doesn't have a clear
+    # top-level gardening category (e.g. /advice/in-month/january).
+    if page_type in ("in-month", "beginners-guide"):
+        category = page_type
+        slug = parts[-1] if parts else "unknown"
+    else:
+        category = parts[0] if parts else "unknown"
+        slug = parts[1] if len(parts) >= 2 else "unknown"
 
     # Extract sections from article-section elements
     sections = []
@@ -96,12 +149,23 @@ def parse_advice_page(html: str, url: str) -> dict | None:
     return {
         "url": url,
         "title": title,
+        "page_type": page_type,
         "category": category,
         "slug": slug,
         "description": description,
         "sections": sections,
         "related_problems": problem_links,
     }
+
+
+def _advice_url_filter(path: str) -> bool:
+    """Accept advice API URLs except those matching excluded prefixes."""
+    return not any(path.startswith(prefix) for prefix in EXCLUDED_PREFIXES)
+
+
+def _sitemap_url_filter(url: str) -> bool:
+    """Accept sitemap URLs matching in-month or beginners-guide prefixes."""
+    return any(prefix in url for prefix in SITEMAP_PREFIXES)
 
 
 def scrape_advice(
@@ -117,11 +181,24 @@ def scrape_advice(
         logger.info("Loaded %d URLs from %s", len(urls), urls_file)
     else:
         with make_client() as client:
-            urls = discover_urls_from_advice_api(
+            api_urls = discover_urls_from_advice_api(
                 client,
-                url_filter=lambda path: "/grow-your-own" in path,
-                label="grow-your-own",
+                url_filter=_advice_url_filter,
+                label="advice",
             )
+            sitemap_urls = discover_urls_from_sitemap(
+                client,
+                url=SITEMAP_URL,
+                url_filter=_sitemap_url_filter,
+                label="in-month/beginners-guide",
+            )
+        urls = sorted(set(api_urls + sitemap_urls))
+        logger.info(
+            "Total: %d unique URLs (%d from API, %d from sitemap)",
+            len(urls),
+            len(api_urls),
+            len(sitemap_urls),
+        )
 
     scrape_loop(
         urls=urls,
@@ -153,7 +230,12 @@ def main(
     ] = None,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging")] = False,
 ) -> None:
-    """Scrape grow-your-own advice articles from the RHS website."""
+    """Scrape gardening advice articles from the RHS website.
+
+    Discovers pages from the advice API and sitemap, covering grow-your-own,
+    growing-guide, pruning-guide, garden-design, in-month, beginners-guide,
+    and more. Each record includes a page_type field for filtering.
+    """
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
