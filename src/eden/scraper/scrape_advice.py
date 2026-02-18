@@ -92,19 +92,7 @@ def parse_advice_page(html: str, url: str) -> dict | None:
         return None
     title = title_tag.get_text(strip=True)
 
-    # Derive page_type, category, and slug from URL path
-    path = url.replace(BASE_URL, "").strip("/")
-    parts = path.split("/")
     page_type = classify_page_type(url)
-
-    # Use page_type as category when the URL structure doesn't have a clear
-    # top-level gardening category (e.g. /advice/in-month/january).
-    if page_type in ("in-month", "beginners-guide"):
-        category = page_type
-        slug = parts[-1] if parts else "unknown"
-    else:
-        category = parts[0] if parts else "unknown"
-        slug = parts[1] if len(parts) >= 2 else "unknown"
 
     # Extract sections from article-section elements
     sections = []
@@ -150,17 +138,15 @@ def parse_advice_page(html: str, url: str) -> dict | None:
         "url": url,
         "title": title,
         "page_type": page_type,
-        "category": category,
-        "slug": slug,
         "description": description,
         "sections": sections,
         "related_problems": problem_links,
     }
 
 
-def _advice_url_filter(path: str) -> bool:
+def _advice_url_filter(url: str) -> bool:
     """Accept advice API URLs except those matching excluded prefixes."""
-    return not any(path.startswith(prefix) for prefix in EXCLUDED_PREFIXES)
+    return not any(prefix in url for prefix in EXCLUDED_PREFIXES)
 
 
 def _sitemap_url_filter(url: str) -> bool:

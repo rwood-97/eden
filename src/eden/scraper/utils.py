@@ -15,6 +15,7 @@ import httpx
 
 from eden.scraper import (
     ADVICE_SEARCH_API,
+    BASE_URL,
     MAX_RETRIES,
     REQUEST_DELAY,
     RETRY_BASE_DELAY,
@@ -96,14 +97,6 @@ def make_client(**kwargs: Any) -> httpx.Client:
     return httpx.Client(**kwargs)
 
 
-def make_async_client(**kwargs: Any) -> httpx.AsyncClient:
-    """Create an httpx AsyncClient with default Eden headers."""
-    kwargs.setdefault("headers", {})["User-Agent"] = USER_AGENT
-    kwargs.setdefault("follow_redirects", True)
-    kwargs.setdefault("timeout", 30)
-    return httpx.AsyncClient(**kwargs)
-
-
 # ---------------------------------------------------------------------------
 # Checkpoint helpers
 # ---------------------------------------------------------------------------
@@ -137,11 +130,9 @@ def discover_urls_from_advice_api(
 
     Args:
         client: httpx Client to use.
-        url_filter: Predicate applied to each hit's URL path.
+        url_filter: Predicate applied to each hit's full URL.
         label: Label for log messages (e.g. "grow-your-own", "pest/disease").
     """
-    from eden.scraper import BASE_URL
-
     all_urls: list[str] = []
     page_size = 200
     start = 0
@@ -174,8 +165,9 @@ def discover_urls_from_advice_api(
 
         for hit in hits:
             url_path = hit.get("url", "")
-            if url_filter(url_path):
-                all_urls.append(f"{BASE_URL}{url_path}")
+            full_url = f"{BASE_URL}{url_path}"
+            if url_filter(full_url):
+                all_urls.append(full_url)
 
         start += len(hits)
         logger.info(
