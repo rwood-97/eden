@@ -53,6 +53,52 @@ Common options (all scrapers):
 
 Scraping is resumable by default — a `.checkpoint` file tracks progress. Re-run the same command to pick up where you left off.
 
+## Synthetic data generation
+
+Synthetic QA pairs are generated from the scraped data using either an OpenAI-compatible API or Azure OpenAI.
+
+### OpenAI-compatible backend (default)
+
+Set the required environment variables (e.g. in a `.env` file):
+
+```bash
+OPENAI_API_BASE=<your-api-base-url>
+OPENAI_API_KEY=<your-api-key>   # optional, defaults to "EMPTY"
+```
+
+### Azure OpenAI backend
+
+```bash
+AZURE_OPENAI_ENDPOINT=<your-azure-endpoint>
+AZURE_OPENAI_API_KEY=<your-azure-api-key>
+```
+
+Then run:
+
+```bash
+python -m eden.synth_data_generation.generate_synthetic_queries
+```
+
+Output is written to `data/synth/` as a JSONL file named `{source_type}_{model}_{n_records}rec_{pairs_per_record}pairs.jsonl`.
+
+| Flag | Description |
+|------|-------------|
+| `--source-type` | `advice` (default), `plants`, or `pests` |
+| `--n-records N` | Number of source records to sample (default: all) |
+| `--pairs-per-record N` | QA pairs per record (default: 5) |
+| `--model NAME` | Model name for the API (default: `gpt-oss-120b`) |
+| `--backend` | `openai` (default) or `azure` |
+| `--source-path PATH` | Source JSONL file (default: `data/raw/{source_type}.jsonl`) |
+| `--save-path PATH` | Output directory (default: `data/synth/`) |
+| `--overwrite` | Overwrite existing output file |
+| `-v` | Verbose logging |
+
+Example — generate QA pairs from 5 advice records using Azure OpenAI:
+
+```bash
+python -m eden.synth_data_generation.generate_synthetic_queries --n-records 5 --pairs-per-record 2 --source-type advice --backend azure --model gpt-4o -v
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.

@@ -1,0 +1,5 @@
+1. "What jobs can I do in the garden in [month/season]?" → seasonal tasks and timings
+2. "How do I [gardening task]?" → practical how-to questions (e.g. digging, composting, watering)
+3. "What plants are good for [condition]?" → e.g. "shade", "dry soil", "clay soil", "pots"
+4. "When is the best time to [sow/plant/harvest] [crop or plant]?" → timing and seasonality
+5. "What are the benefits of [technique or practice]?" → e.g. crop rotation, no-dig, green manures

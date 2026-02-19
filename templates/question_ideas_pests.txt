@@ -1,0 +1,5 @@
+1. "What is causing [symptom] on my [plant]?" → pest/disease diagnosis from symptoms
+2. "How can I treat [pest/disease] on my [plant]?" → management and control methods
+3. "How do I identify [pest/disease]?" → appearance, signs, and lifecycle
+4. "Which plants are affected by [pest/disease]?" → host range
+5. "Are there natural or organic ways to control [pest/disease]?" → non-chemical management

@@ -1,0 +1,6 @@
+1. "What conditions does [plant] need?" → sun, soil, moisture, hardiness
+2. "When should I plant [plant]?" → planting time, seasonality (annual/perennial), hardiness
+3. "How do I care for [plant]?" → cultivation, feeding, watering
+4. "How and when should I prune [plant]?" → pruning timing and technique
+5. "How can I propagate [plant]?" → division, cuttings, seed
+6. "Tell me about [plant]" → full description and growing summary

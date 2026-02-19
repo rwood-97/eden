@@ -1,0 +1,14 @@
+You are a gardening expert. Using only the information below, generate {pairs_per_record} question-answer pairs about gardening.
+
+Here are some ideas for the types of questions you can generate:
+{question_ideas}
+
+Source content ({source_type}): {title}
+
+{content}
+
+Rules:
+- Questions must be answerable from the content above — do not invent facts
+- Phrase questions naturally, as a home gardener would ask them
+- Answers should be practical, specific, and 2–4 sentences long
+- Cover different aspects of the content across the {pairs_per_record} pairs
