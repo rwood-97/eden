@@ -321,6 +321,9 @@ def main(
     if source_type not in {"advice", "plants", "pests"}:
         err_msg = f"Invalid source_type: {source_type!r}. Must be one of: advice, plants, pests."
         raise ValueError(err_msg)
+    if backend not in {"openai", "azure"}:
+        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+        raise ValueError(err_msg)
 
     generate_qa_pairs(
         n_records=n_records,

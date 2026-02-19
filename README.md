@@ -27,7 +27,7 @@ uv sync --all-extras
 
 ## Scrapers
 
-Three scrapers collect data from the RHS website into JSONL files under `data/raw/`.
+There are three scrapers to collect data from the RHS website into JSONL files under `data/raw/`.
 
 You can use `python -m xxx` or `uv run xxx` to run the scrapers, where `xxx` is one of `eden.scraper.scrape_plants`, `eden.scraper.scrape_advice`, or `eden.scraper.scrape_pests`.
 
@@ -53,27 +53,32 @@ Common options (all scrapers):
 
 Scraping is resumable by default — a `.checkpoint` file tracks progress. Re-run the same command to pick up where you left off.
 
-## Synthetic data generation
+## LLM set up
 
-Synthetic QA pairs are generated from the scraped data using either an OpenAI-compatible API or Azure OpenAI.
+There are two options for which LLM backend to use for synthetic data generation and RAG:
 
-### OpenAI-compatible backend (default)
+1. OpenAI (default) - e.g. when using vLLM
+2. Azure OpenAI
 
-Set the required environment variables (e.g. in a `.env` file):
+To use these you will need to set the required environment variables in a `.env` file.
+
+For `openai` backend:
 
 ```bash
 OPENAI_API_BASE=<your-api-base-url>
 OPENAI_API_KEY=<your-api-key>   # optional, defaults to "EMPTY"
 ```
 
-### Azure OpenAI backend
+For `azure` backend:
 
 ```bash
 AZURE_OPENAI_ENDPOINT=<your-azure-endpoint>
 AZURE_OPENAI_API_KEY=<your-azure-api-key>
 ```
 
-Then run:
+## Synthetic data generation
+
+Generate synthetic QA pairs using:
 
 ```bash
 python -m eden.synth_data_generation.generate_synthetic_queries
@@ -98,6 +103,46 @@ Example — generate QA pairs from 5 advice records using Azure OpenAI:
 ```bash
 python -m eden.synth_data_generation.generate_synthetic_queries --n-records 5 --pairs-per-record 2 --source-type advice --backend azure --model gpt-4o -v
 ```
+
+## RAG pipeline
+
+### Build the index
+
+Build the index for all three source types in one go using:
+
+```bash
+python -m eden.rag.cli build-index --source-dir data/raw --persist-dir data/chroma
+```
+
+Or, build the index per file (plants, advice, or pests) using:
+
+```bash
+python -m eden.rag.cli build-index --source-file data/raw/advice.jsonl --persist-dir data/chroma
+```
+
+| Flag | Description |
+|------|-------------|
+| `--source-dir PATH` | Directory containing `advice.jsonl`, `plants.jsonl`, `pests.jsonl` |
+| `--source-file PATH` | Path to a single JSONL file |
+| `--source-type` | `advice` (default), `plants`, or `pests` — only used with `--source-file` |
+| `--persist-dir PATH` | Directory to write the Chroma index (default: `data/chroma`) |
+| `--n-records N` | Limit to first N records per file (useful for testing) |
+| `-v` | Verbose logging |
+
+### Chat
+
+Then run RAG chat using:
+
+```bash
+python -m eden.rag.cli chat --persist-dir data/chroma
+```
+
+| Flag | Description |
+|------|-------------|
+| `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
+| `--model NAME` | OpenAI model name (default: `gpt-4o-mini`) |
+| `--k N` | Number of chunks to retrieve per query (default: 4) |
+| `-v` | Verbose logging |
 
 ## Contributing
 
