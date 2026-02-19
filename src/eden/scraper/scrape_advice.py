@@ -23,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -108,7 +109,9 @@ def parse_advice_page(html: str, url: str) -> dict | None:
         if not content_div:
             continue
 
-        content = content_div.get_text(strip=True)
+        content = re.sub(
+            r"\s+", " ", content_div.get_text(separator="\n", strip=True)
+        ).strip()
         if content:
             sections.append({"heading": heading, "content": content})
 

@@ -95,7 +95,9 @@ def parse_pest_page(html: str, url: str) -> dict | None:
         if not content_div:
             continue
 
-        content = content_div.get_text(strip=True)
+        content = re.sub(
+            r"\s+", " ", content_div.get_text(separator="\n", strip=True)
+        ).strip()
         if content:
             sections.append({"heading": heading, "content": content})
 
@@ -149,7 +151,7 @@ def scrape_pests(
         with make_client() as client:
             urls = discover_urls_from_advice_api(
                 client,
-                url_filter=lambda path: any(path.startswith(p) for p in PEST_PREFIXES),
+                url_filter=lambda path: any(p in path for p in PEST_PREFIXES),
                 label="pest/disease",
             )
 
