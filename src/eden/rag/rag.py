@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from collections import defaultdict
 from typing import Any
 
@@ -95,21 +94,6 @@ def _flatten_record(record: dict, source_type: str) -> str:
         if content:
             parts.append(content)
     return "\n\n".join(parts)
-
-
-def make_client(api_key: str | None = None, base_url: str | None = None) -> OpenAI:
-    """Create an OpenAI client for the RAG pipeline.
-
-    Uses OPENAI_API_KEY from the environment by default. Optionally accepts
-    a base_url for OpenAI-compatible endpoints.
-    """
-    api_key = api_key or os.environ.get("OPENAI_API_KEY")
-    kwargs: dict[str, Any] = {}
-    if api_key:
-        kwargs["api_key"] = api_key
-    if base_url:
-        kwargs["base_url"] = base_url
-    return OpenAI(**kwargs)
 
 
 class RAG:

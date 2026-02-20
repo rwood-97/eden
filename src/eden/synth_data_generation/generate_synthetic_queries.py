@@ -17,8 +17,8 @@ from typing import Annotated
 import tqdm
 import typer
 
-from eden.synth_data_generation.azure_client import make_azure_client
-from eden.synth_data_generation.openai_client import get_tool_response, make_client
+from eden.azure_client import make_azure_client
+from eden.openai_client import get_tool_response, make_client
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +224,7 @@ def generate_qa_pairs(
             err_msg = f"Output file already exists: {out_path}."
             raise FileExistsError(err_msg)
 
-    client = make_azure_client() if backend == "azure" else make_client()
+    client = make_azure_client(model=model) if backend == "azure" else make_client()
 
     with open(out_path, "w") as out:
         logger.info("Writing to %s", out_path)

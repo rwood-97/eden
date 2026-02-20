@@ -97,6 +97,9 @@ def build_index(
             "--n-records", help="Limit to first N records per file (default: all)."
         ),
     ] = None,
+    backend: Annotated[
+        str, typer.Option("--backend", help="API backend: openai or azure.")
+    ] = "openai",
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
     """Index scraped JSONL records into a persistent Chroma store.
@@ -147,12 +150,18 @@ def build_index(
     # Late import so the CLI is usable without rag deps when just --help
     import os
 
+    from eden.azure_client import make_azure_client
+    from eden.openai_client import make_client
     from eden.rag.build_retriever import (
         DEFAULT_RETRIEVER_CONFIG,
         RetrieverConfig,
         get_retriever,
     )
-    from eden.rag.rag import RAG, make_client
+    from eden.rag.rag import RAG
+
+    if backend not in {"openai", "azure"}:
+        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+        raise ValueError(err_msg)
 
     config = RetrieverConfig(
         embedding_model_name=DEFAULT_RETRIEVER_CONFIG.embedding_model_name,
@@ -163,8 +172,11 @@ def build_index(
     )
 
     vectorstore, retriever, text_splitter = get_retriever(config)
-    api_key = os.environ.get("OPENAI_API_KEY", "not-needed-for-indexing")
-    client = make_client(api_key=api_key)
+    if backend == "azure":
+        client = make_azure_client()
+    else:
+        api_key = os.environ.get("OPENAI_API_KEY", "not-needed-for-indexing")
+        client = make_client(api_key=api_key)
     rag = RAG(
         vectorstore=vectorstore,
         retriever=retriever,
@@ -200,6 +212,9 @@ def chat(
         int,
         typer.Option("--k", help="Number of chunks to retrieve per query."),
     ] = 4,
+    backend: Annotated[
+        str, typer.Option("--backend", help="API backend: openai or azure.")
+    ] = "openai",
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
     """Start an interactive gardening chat session grounded in the indexed knowledge base."""
@@ -216,12 +231,18 @@ def chat(
         )
         raise typer.Exit(1)
 
+    from eden.azure_client import make_azure_client
+    from eden.openai_client import make_client
     from eden.rag.build_retriever import (
         DEFAULT_RETRIEVER_CONFIG,
         RetrieverConfig,
         get_retriever,
     )
-    from eden.rag.rag import RAG, make_client
+    from eden.rag.rag import RAG
+
+    if backend not in {"openai", "azure"}:
+        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+        raise ValueError(err_msg)
 
     config = RetrieverConfig(
         embedding_model_name=DEFAULT_RETRIEVER_CONFIG.embedding_model_name,
@@ -232,7 +253,7 @@ def chat(
     )
 
     vectorstore, retriever, text_splitter = get_retriever(config)
-    client = make_client()
+    client = make_azure_client(model=model) if backend == "azure" else make_client()
     rag = RAG(
         vectorstore=vectorstore,
         retriever=retriever,
