@@ -18,12 +18,12 @@ import json
 import logging
 import re
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Annotated
 
 import httpx
 import typer
-from bs4 import BeautifulSoup
 
 from eden.scraper import (
     DETAIL_ENDPOINT,
@@ -43,24 +43,32 @@ SITEMAP_INDEX_URL = "https://www.rhs.org.uk/sitemap_index.xml"
 DEFAULT_OUTPUT = Path("data/raw/plants.jsonl")
 
 
+_SITEMAP_NS = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+
+
 def get_plant_sitemap_urls(client: httpx.Client) -> list[str]:
     """Fetch the sitemap index and return plant sitemap URLs."""
     resp = client.get(SITEMAP_INDEX_URL)
     resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "lxml-xml")
-    return [loc.text for loc in soup.find_all("loc") if "sitemap-plants" in loc.text]
+    root = ET.fromstring(resp.text)
+    return [
+        loc.text
+        for loc in root.findall(".//sm:loc", _SITEMAP_NS)
+        if loc.text and "sitemap-plants" in loc.text
+    ]
 
 
 def extract_plant_ids_from_sitemap(client: httpx.Client, url: str) -> list[int]:
     """Parse a plant sitemap XML and extract plant IDs from URLs."""
     resp = client.get(url)
     resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "lxml-xml")
+    root = ET.fromstring(resp.text)
     ids = []
-    for loc in soup.find_all("loc"):
-        match = re.search(r"/plants/(\d+)/", loc.text)
-        if match:
-            ids.append(int(match.group(1)))
+    for loc in root.findall(".//sm:loc", _SITEMAP_NS):
+        if loc.text:
+            match = re.search(r"/plants/(\d+)/", loc.text)
+            if match:
+                ids.append(int(match.group(1)))
     return ids
 
 

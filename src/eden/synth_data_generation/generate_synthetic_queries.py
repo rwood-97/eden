@@ -18,6 +18,7 @@ import tqdm
 import typer
 
 from eden.azure_client import make_azure_client
+from eden.data_utils import flatten_record, get_page_type, get_title
 from eden.openai_client import get_tool_response, make_client
 
 logger = logging.getLogger(__name__)
@@ -52,75 +53,6 @@ _QA_TOOL: dict = {
         },
     },
 }
-
-
-# ---------------------------------------------------------------------------
-# Content flattening
-# ---------------------------------------------------------------------------
-
-
-def _flatten_advice(record: dict) -> str:
-    parts = []
-    for section in record.get("sections", []):
-        heading = section.get("heading", "")
-        content = section.get("content", "")
-        if heading and content:
-            parts.append(f"## {heading}\n{content}")
-    return "\n\n".join(parts)
-
-
-def _flatten_plants(record: dict) -> str:
-    parts = []
-    for field in ("cultivation", "pruning", "propagation"):
-        value = record.get(field, "").strip()
-        if value:
-            parts.append(f"## {field.capitalize()}\n{value}")
-    return "\n\n".join(parts)
-
-
-def _flatten_pests(record: dict) -> str:
-    parts = []
-    quick_facts = record.get("quick_facts", {})
-    if quick_facts:
-        facts_text = "\n".join(f"{k}: {v}" for k, v in quick_facts.items())
-        parts.append(f"## Quick facts\n{facts_text}")
-    for section in record.get("sections", []):
-        heading = section.get("heading", "")
-        content = section.get("content", "")
-        if heading and content and heading.lower() != "quick facts":
-            parts.append(f"## {heading}\n{content}")
-    return "\n\n".join(parts)
-
-
-_FLATTEN = {
-    "advice": _flatten_advice,
-    "plants": _flatten_plants,
-    "pests": _flatten_pests,
-}
-
-
-def flatten_record(record: dict, source_type: str) -> str:
-    fn = _FLATTEN.get(source_type)
-    if fn is None:
-        msg = f"Unknown source_type {source_type!r}; expected one of {list(_FLATTEN)}"
-        raise ValueError(msg)
-    return fn(record)
-
-
-def get_title(record: dict, source_type: str) -> str:
-    if source_type == "plants":
-        common = record.get("commonName", "")
-        botanical = record.get("botanicalNameUnFormatted", "")
-        return common or botanical or "Unknown plant"
-    return record.get("title", "")
-
-
-def get_page_type(record: dict, source_type: str) -> str:
-    if source_type == "advice":
-        return record.get("page_type", record.get("slug", "advice"))
-    if source_type == "pests":
-        return record.get("type", "biodiversity")
-    return "plant-profile"
 
 
 # ---------------------------------------------------------------------------

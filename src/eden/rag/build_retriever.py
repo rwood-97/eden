@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from langchain_chroma import Chroma
 from langchain_core.vectorstores import VectorStoreRetriever
+from langchain_text_splitters.base import TextSplitter
 
 from eden.rag.build_index import (
     VectorStoreConfig,
@@ -29,7 +30,7 @@ DEFAULT_RETRIEVER_CONFIG = RetrieverConfig(
 
 def get_retriever(
     config: RetrieverConfig = DEFAULT_RETRIEVER_CONFIG,
-) -> tuple[Chroma, VectorStoreRetriever]:
+) -> tuple[Chroma, VectorStoreRetriever, TextSplitter]:
     """Create (or load from disk) a Chroma vectorstore and return both the
     store and a retriever. The store is needed to add documents later.
 

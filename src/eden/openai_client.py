@@ -1,10 +1,7 @@
 import logging
 import os
 
-from dotenv import load_dotenv
 from openai import OpenAI
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +17,9 @@ def make_client(base_url: str | None = None, api_key: str | None = None) -> Open
         API key. Defaults to ``OPENAI_API_KEY`` env var.
     """
     base_url = base_url or os.environ["OPENAI_API_BASE"]
-    api_key = api_key or os.environ.get("OPENAI_API_KEY", "EMPTY")
+    api_key = api_key or os.environ.get(
+        "OPENAI_API_KEY", "EMPTY"
+    )  # "EMPTY" for local servers without auth
     return OpenAI(base_url=base_url, api_key=api_key)
 
 
