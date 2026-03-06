@@ -48,17 +48,15 @@ def test_make_client_defaults_api_key_to_empty(monkeypatch):
         assert mock_openai.call_args.kwargs["api_key"] == "EMPTY"
 
 
-def test_make_client_missing_base_url_raises(monkeypatch):
+def test_make_client_falls_back_to_vllm_default(monkeypatch):
     monkeypatch.delenv("OPENAI_API_BASE", raising=False)
 
-    import importlib
+    with patch("eden.openai_client.OpenAI") as mock_openai:
+        from eden.openai_client import make_client
 
-    import eden.openai_client as mod
+        make_client()
 
-    importlib.reload(mod)
-
-    with pytest.raises(KeyError):
-        mod.make_client()
+        assert mock_openai.call_args.kwargs["base_url"] == "http://localhost:8000/v1"
 
 
 # ---------------------------------------------------------------------------

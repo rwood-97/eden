@@ -55,18 +55,19 @@ Scraping is resumable by default — a `.checkpoint` file tracks progress. Re-ru
 
 ## LLM set up
 
-There are two options for which LLM backend to use for synthetic data generation and RAG:
+There are three options for which LLM backend to use for synthetic data generation and RAG:
 
 1. OpenAI (default) - e.g. when using vLLM
 2. Azure OpenAI
+3. Ollama - local models via Ollama
 
 To use these you will need to set the required environment variables in a `.env` file.
 
 For `openai` backend:
 
 ```bash
-OPENAI_API_BASE=<your-api-base-url>
-OPENAI_API_KEY=<your-api-key>   # optional, defaults to "EMPTY"
+OPENAI_API_BASE=<your-api-base-url>   # optional, defaults to http://localhost:8000/v1 (vLLM default)
+OPENAI_API_KEY=<your-api-key>         # optional, defaults to "EMPTY"
 ```
 
 For `azure` backend:
@@ -74,6 +75,12 @@ For `azure` backend:
 ```bash
 AZURE_OPENAI_ENDPOINT=<your-azure-endpoint>
 AZURE_OPENAI_API_KEY=<your-azure-api-key>
+```
+
+For `ollama` backend, no API key is required. Ensure Ollama is running locally (`ollama serve`). Optionally override the default URL:
+
+```bash
+OLLAMA_BASE_URL=http://localhost:11434/v1   # optional, this is the default
 ```
 
 ## Synthetic data generation
@@ -127,6 +134,7 @@ python -m eden.rag.cli build-index --source-file data/raw/advice.jsonl --persist
 | `--source-type` | `advice` (default), `plants`, or `pests` — only used with `--source-file` |
 | `--persist-dir PATH` | Directory to write the Chroma index (default: `data/chroma`) |
 | `--n-records N` | Limit to first N records per file (useful for testing) |
+| `--backend` | `openai` (default), `azure`, or `ollama` |
 | `-v` | Verbose logging |
 
 ### Chat
@@ -140,9 +148,18 @@ python -m eden.rag.cli chat --persist-dir data/chroma
 | Flag | Description |
 |------|-------------|
 | `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
-| `--model NAME` | OpenAI model name (default: `gpt-4o-mini`) |
+| `--model NAME` | Model name (default: `gpt-4o-mini`) |
 | `--k N` | Number of chunks to retrieve per query (default: 4) |
+| `--backend` | `openai` (default), `azure`, or `ollama` |
 | `-v` | Verbose logging |
+
+Example — chat using a local Ollama model:
+
+```bash
+python -m eden.rag.cli chat --persist-dir data/chroma --backend ollama --model llama3.2
+```
+
+> **Note:** Ollama tool-calling support varies by model. Use models that support it (e.g. `llama3.1`, `llama3.2`, `mistral-nemo`).
 
 ## Contributing
 

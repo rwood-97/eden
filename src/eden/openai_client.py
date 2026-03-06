@@ -12,14 +12,14 @@ def make_client(base_url: str | None = None, api_key: str | None = None) -> Open
     Parameters
     ----------
     base_url:
-        API base URL. Defaults to ``OPENAI_API_BASE`` env var.
+        API base URL. Defaults to ``OPENAI_API_BASE`` env var, or
+        ``http://localhost:8000/v1`` (vLLM default) if unset.
     api_key:
-        API key. Defaults to ``OPENAI_API_KEY`` env var.
+        API key. Defaults to ``OPENAI_API_KEY`` env var, or ``"EMPTY"`` for
+        local servers that don't require auth.
     """
-    base_url = base_url or os.environ["OPENAI_API_BASE"]
-    api_key = api_key or os.environ.get(
-        "OPENAI_API_KEY", "EMPTY"
-    )  # "EMPTY" for local servers without auth
+    base_url = base_url or os.environ.get("OPENAI_API_BASE", "http://localhost:8000/v1")
+    api_key = api_key or os.environ.get("OPENAI_API_KEY", "EMPTY")
     return OpenAI(base_url=base_url, api_key=api_key)
 
 

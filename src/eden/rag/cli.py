@@ -159,8 +159,10 @@ def build_index(
     )
     from eden.rag.rag import RAG
 
-    if backend not in {"openai", "azure"}:
-        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+    if backend not in {"openai", "azure", "ollama"}:
+        err_msg = (
+            f"Invalid backend: {backend!r}. Must be one of: openai, azure, ollama."
+        )
         raise ValueError(err_msg)
 
     config = RetrieverConfig(
@@ -174,6 +176,11 @@ def build_index(
     collection, text_splitter = get_retriever(config)
     if backend == "azure":
         client = make_azure_client()
+    elif backend == "ollama":
+        client = make_client(
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_key="ollama",
+        )
     else:
         api_key = os.environ.get("OPENAI_API_KEY", "not-needed-for-indexing")
         client = make_client(api_key=api_key)
@@ -213,7 +220,7 @@ def chat(
         typer.Option("--k", help="Number of chunks to retrieve per query."),
     ] = 4,
     backend: Annotated[
-        str, typer.Option("--backend", help="API backend: openai or azure.")
+        str, typer.Option("--backend", help="API backend: openai, azure, or ollama.")
     ] = "openai",
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
@@ -231,6 +238,8 @@ def chat(
         )
         raise typer.Exit(1)
 
+    import os
+
     from eden.azure_client import make_azure_client
     from eden.openai_client import make_client
     from eden.rag.build_retriever import (
@@ -240,8 +249,10 @@ def chat(
     )
     from eden.rag.rag import RAG
 
-    if backend not in {"openai", "azure"}:
-        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+    if backend not in {"openai", "azure", "ollama"}:
+        err_msg = (
+            f"Invalid backend: {backend!r}. Must be one of: openai, azure, ollama."
+        )
         raise ValueError(err_msg)
 
     config = RetrieverConfig(
@@ -253,7 +264,15 @@ def chat(
     )
 
     collection, text_splitter = get_retriever(config)
-    client = make_azure_client(model=model) if backend == "azure" else make_client()
+    if backend == "azure":
+        client = make_azure_client(model=model)
+    elif backend == "ollama":
+        client = make_client(
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_key="ollama",
+        )
+    else:
+        client = make_client()
     rag = RAG(
         collection=collection,
         text_splitter=text_splitter,
