@@ -1,16 +1,15 @@
 import json
 import logging
+import uuid
 from collections import defaultdict
 from typing import Any
 
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
-from langchain_core.vectorstores import VectorStoreRetriever
-from langchain_text_splitters.base import TextSplitter
+import chromadb
 from openai import OpenAI
 
 from eden.data_utils import flatten_record as _flatten_record
 from eden.data_utils import get_title as _get_title
+from eden.rag.build_index import TokenTextSplitter
 
 logger = logging.getLogger(__name__)
 
@@ -52,31 +51,31 @@ class RAG:
 
     Parameters
     ----------
-    vectorstore:
-        A ``Chroma`` instance (from ``get_retriever``).
-    retriever:
-        A ``VectorStoreRetriever`` instance (from ``get_retriever``).
+    collection:
+        A ``chromadb.Collection`` instance (from ``get_retriever``).
     text_splitter:
         The text splitter used to chunk documents before indexing.
     client:
         An ``OpenAI`` client.
     model:
         Model name to use (default ``gpt-4o-mini``).
+    k:
+        Number of chunks to retrieve per query.
     """
 
     def __init__(
         self,
-        vectorstore: Chroma,
-        retriever: VectorStoreRetriever,
-        text_splitter: TextSplitter,
+        collection: chromadb.Collection,
+        text_splitter: TokenTextSplitter,
         client: OpenAI,
         model: str = "gpt-4o-mini",
+        k: int = 4,
     ):
-        self.vectorstore = vectorstore
-        self.retriever = retriever
+        self.collection = collection
         self.text_splitter = text_splitter
         self.client = client
         self.model = model
+        self.k = k
         self._threads: dict[str, list[dict]] = defaultdict(list)
 
     # ------------------------------------------------------------------
@@ -165,10 +164,10 @@ class RAG:
 
             page_content = f"# {title}\n\n{body}" if title else body
             documents.append(
-                Document(
-                    page_content=page_content,
-                    metadata={"source": url, "title": title},
-                )
+                {
+                    "page_content": page_content,
+                    "metadata": {"source": url, "title": title},
+                }
             )
 
         chunks = self.text_splitter.split_documents(documents)
@@ -176,7 +175,11 @@ class RAG:
             "Indexing %d chunks from %d documents...", len(chunks), len(documents)
         )
         if chunks:
-            self.vectorstore.add_documents(chunks)
+            self.collection.add(
+                documents=[c["page_content"] for c in chunks],
+                metadatas=[c["metadata"] for c in chunks],
+                ids=[str(uuid.uuid4()) for _ in chunks],
+            )
         logger.info("Done indexing.")
 
     # ------------------------------------------------------------------
@@ -185,15 +188,18 @@ class RAG:
 
     def _search(self, query: str) -> str:
         """Retrieve docs and format them as a text block for the LLM."""
-        docs = self.retriever.invoke(query)
+        results = self.collection.query(query_texts=[query], n_results=self.k)
+        docs = results["documents"][0]
+        metadatas = results["metadatas"][0]
+
         if not docs:
             return "No relevant information found in the gardening knowledge base."
 
         snippets = []
-        for doc in docs:
-            source = doc.metadata.get("source", "unknown")
-            title = doc.metadata.get("title", "")
+        for text, meta in zip(docs, metadatas, strict=False):
+            source = meta.get("source", "unknown")
+            title = meta.get("title", "")
             header = f"[Source: {source}]" + (f" {title}" if title else "")
-            snippets.append(f"{header}\n{doc.page_content}")
+            snippets.append(f"{header}\n{text}")
 
         return "\n\n---\n\n".join(snippets)

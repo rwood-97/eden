@@ -1,6 +1,6 @@
 """Tests for the RAG class public interface.
 
-Dependencies (vectorstore, text_splitter, LLM client) are mocked so that:
+Dependencies (chromadb collection, text_splitter, LLM client) are mocked so that:
   1. Tests pass today with LangChain-backed implementations.
   2. Tests still pass after the LangChain → chromadb migration — only
      the mock setup in _make_rag() will need updating, not the assertions.
@@ -41,13 +41,8 @@ def _make_tool_call(query: str, call_id: str = "call_abc") -> MagicMock:
 
 
 def _make_rag(model: str = "gpt-4o-mini") -> RAG:
-    """Create a RAG instance with fully mocked langchain/chromadb dependencies.
-
-    When migrating away from LangChain, update the mock objects below to
-    match the new constructor signature — the test assertions stay the same.
-    """
-    vectorstore = MagicMock()
-    retriever = MagicMock()
+    """Create a RAG instance with fully mocked chromadb dependencies."""
+    collection = MagicMock()
     text_splitter = MagicMock()
     client = MagicMock()
 
@@ -55,8 +50,7 @@ def _make_rag(model: str = "gpt-4o-mini") -> RAG:
     text_splitter.split_documents.side_effect = lambda docs: docs
 
     return RAG(
-        vectorstore=vectorstore,
-        retriever=retriever,
+        collection=collection,
         text_splitter=text_splitter,
         client=client,
         model=model,
@@ -203,7 +197,7 @@ def test_index_documents_advice_records():
 
     rag.index_documents(records, source_type="advice")
 
-    rag.vectorstore.add_documents.assert_called_once()
+    rag.collection.add.assert_called_once()
 
 
 def test_index_documents_skips_empty_records():
@@ -221,7 +215,7 @@ def test_index_documents_skips_empty_records():
 
     rag.index_documents(records, source_type="plants")
 
-    rag.vectorstore.add_documents.assert_not_called()
+    rag.collection.add.assert_not_called()
 
 
 def test_index_documents_plants_records():
@@ -238,7 +232,7 @@ def test_index_documents_plants_records():
 
     rag.index_documents(records, source_type="plants")
 
-    rag.vectorstore.add_documents.assert_called_once()
+    rag.collection.add.assert_called_once()
 
 
 def test_index_documents_multiple_records_batched():
@@ -255,7 +249,7 @@ def test_index_documents_multiple_records_batched():
     rag.index_documents(records, source_type="advice")
 
     # All docs added in one call (after splitting)
-    rag.vectorstore.add_documents.assert_called_once()
+    rag.collection.add.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -265,10 +259,10 @@ def test_index_documents_multiple_records_batched():
 
 def test_search_returns_string():
     rag = _make_rag()
-    mock_doc = MagicMock()
-    mock_doc.page_content = "Roses need sun."
-    mock_doc.metadata = {"source": "https://www.rhs.org.uk/roses", "title": "Roses"}
-    rag.retriever.invoke.return_value = [mock_doc]
+    rag.collection.query.return_value = {
+        "documents": [["Roses need sun."]],
+        "metadatas": [[{"source": "https://www.rhs.org.uk/roses", "title": "Roses"}]],
+    }
 
     result = rag._search("roses")
 
@@ -278,7 +272,7 @@ def test_search_returns_string():
 
 def test_search_no_results_returns_fallback():
     rag = _make_rag()
-    rag.retriever.invoke.return_value = []
+    rag.collection.query.return_value = {"documents": [[]], "metadatas": [[]]}
 
     result = rag._search("obscure topic")
 

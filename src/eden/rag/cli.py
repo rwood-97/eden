@@ -171,17 +171,17 @@ def build_index(
         search_type=DEFAULT_RETRIEVER_CONFIG.search_type,
     )
 
-    vectorstore, retriever, text_splitter = get_retriever(config)
+    collection, text_splitter = get_retriever(config)
     if backend == "azure":
         client = make_azure_client()
     else:
         api_key = os.environ.get("OPENAI_API_KEY", "not-needed-for-indexing")
         client = make_client(api_key=api_key)
     rag = RAG(
-        vectorstore=vectorstore,
-        retriever=retriever,
+        collection=collection,
         text_splitter=text_splitter,
         client=client,
+        k=config.k,
     )
 
     total = 0
@@ -252,14 +252,14 @@ def chat(
         search_type=DEFAULT_RETRIEVER_CONFIG.search_type,
     )
 
-    vectorstore, retriever, text_splitter = get_retriever(config)
+    collection, text_splitter = get_retriever(config)
     client = make_azure_client(model=model) if backend == "azure" else make_client()
     rag = RAG(
-        vectorstore=vectorstore,
-        retriever=retriever,
+        collection=collection,
         text_splitter=text_splitter,
         client=client,
         model=model,
+        k=config.k,
     )
 
     typer.echo("Eden gardening assistant. Type 'quit' or Ctrl-C to exit.\n")

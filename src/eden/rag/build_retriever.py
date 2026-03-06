@@ -1,14 +1,12 @@
 import logging
-import os
 from dataclasses import dataclass
 
-from langchain_chroma import Chroma
-from langchain_core.vectorstores import VectorStoreRetriever
-from langchain_text_splitters.base import TextSplitter
+import chromadb
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 from eden.rag.build_index import (
+    TokenTextSplitter,
     VectorStoreConfig,
-    setup_embedding_model,
     setup_text_splitter,
 )
 
@@ -16,7 +14,7 @@ from eden.rag.build_index import (
 @dataclass
 class RetrieverConfig(VectorStoreConfig):
     k: int
-    search_type: str  # "similarity" | "mmr"
+    search_type: str  # "similarity" (kept for API compatibility)
 
 
 DEFAULT_RETRIEVER_CONFIG = RetrieverConfig(
@@ -30,35 +28,30 @@ DEFAULT_RETRIEVER_CONFIG = RetrieverConfig(
 
 def get_retriever(
     config: RetrieverConfig = DEFAULT_RETRIEVER_CONFIG,
-) -> tuple[Chroma, VectorStoreRetriever, TextSplitter]:
-    """Create (or load from disk) a Chroma vectorstore and return both the
-    store and a retriever. The store is needed to add documents later.
+) -> tuple[chromadb.Collection, TokenTextSplitter]:
+    """Create (or load from disk) a chromadb collection and text splitter.
 
     Returns
     -------
-    (vectorstore, retriever)
+    (collection, text_splitter)
     """
-    embedding_model = setup_embedding_model(config.embedding_model_name)
+    ef = SentenceTransformerEmbeddingFunction(model_name=config.embedding_model_name)
     text_splitter = setup_text_splitter(
         config.embedding_model_name, config.chunk_overlap
     )
 
     persist_dir = str(config.persist_directory) if config.persist_directory else None
 
-    if persist_dir and os.path.exists(persist_dir):
-        logging.info("Loading Chroma from '%s'", persist_dir)
+    if persist_dir:
+        logging.info("Loading/creating Chroma at '%s'", persist_dir)
+        db = chromadb.PersistentClient(path=persist_dir)
     else:
-        logging.info("Creating new Chroma vectorstore")
+        logging.info("Creating ephemeral chromadb")
+        db = chromadb.EphemeralClient()
 
-    vectorstore = Chroma(
-        collection_name="gardening_knowledge",
-        embedding_function=embedding_model,
-        persist_directory=persist_dir,
+    collection = db.get_or_create_collection(
+        name="gardening_knowledge",
+        embedding_function=ef,
     )
 
-    retriever = vectorstore.as_retriever(
-        search_type=config.search_type,
-        search_kwargs={"k": config.k},
-    )
-
-    return vectorstore, retriever, text_splitter
+    return collection, text_splitter
