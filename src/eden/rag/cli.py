@@ -275,5 +275,95 @@ def chat(
             sys.exit(1)
 
 
+# ---------------------------------------------------------------------------
+# serve
+# ---------------------------------------------------------------------------
+
+
+@app.command("serve")
+def serve(
+    persist_dir: Annotated[
+        Path,
+        typer.Option(
+            "--persist-dir", help="Chroma persist directory built with build-index."
+        ),
+    ] = DEFAULT_PERSIST_DIR,
+    model: Annotated[
+        str,
+        typer.Option("--model", help="OpenAI model name."),
+    ] = "gpt-4o-mini",
+    k: Annotated[
+        int,
+        typer.Option("--k", help="Number of chunks to retrieve per query."),
+    ] = 4,
+    backend: Annotated[
+        str, typer.Option("--backend", help="API backend: openai, azure, or ollama.")
+    ] = "openai",
+    host: Annotated[str, typer.Option("--host", help="Host to bind to.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8000,
+    verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
+) -> None:
+    """Start the Eden web chat server."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+
+    if not persist_dir.exists():
+        typer.echo(
+            f"Persist directory not found: {persist_dir}\n"
+            "Run 'eden-rag build-index' first.",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    import os
+
+    import uvicorn
+
+    from eden.azure_client import make_azure_client
+    from eden.openai_client import make_client
+    from eden.rag.build_retriever import (
+        DEFAULT_RETRIEVER_CONFIG,
+        RetrieverConfig,
+        get_retriever,
+    )
+    from eden.rag.rag import RAG
+    from eden.rag.server import app as fastapi_app
+    from eden.rag.server import configure
+
+    if backend not in {"openai", "azure", "ollama"}:
+        err_msg = (
+            f"Invalid backend: {backend!r}. Must be one of: openai, azure, ollama."
+        )
+        raise ValueError(err_msg)
+
+    config = RetrieverConfig(
+        embedding_model_name=DEFAULT_RETRIEVER_CONFIG.embedding_model_name,
+        chunk_overlap=DEFAULT_RETRIEVER_CONFIG.chunk_overlap,
+        persist_directory=persist_dir,
+        k=k,
+        search_type=DEFAULT_RETRIEVER_CONFIG.search_type,
+    )
+
+    collection, _ = get_retriever(config)
+
+    if backend == "azure":
+        client = make_azure_client(model=model)
+    elif backend == "ollama":
+        client = make_client(
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_key="ollama",
+        )
+    else:
+        client = make_client()
+
+    rag = RAG(collection=collection, client=client, model=model, k=config.k)
+    configure(rag)
+
+    typer.echo(f"Eden gardening assistant running at http://{host}:{port}")
+    uvicorn.run(fastapi_app, host=host, port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()

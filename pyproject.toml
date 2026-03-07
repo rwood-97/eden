@@ -43,6 +43,10 @@ rag = [
   "chromadb>=1.5,<2",
   "sentence-transformers>=5.2,<6",
 ]
+server = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.29",
+]
 
 [project.urls]
 Homepage = "https://github.com/rwood-97/eden"

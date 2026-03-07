@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eden — Gardening Assistant</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f7f2;
+      color: #1a2e1a;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #2d6a2d;
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: .02em; }
+    header .subtitle { font-size: .8rem; opacity: .75; }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg {
+      max-width: 72%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      line-height: 1.55;
+      font-size: .93rem;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #2d6a2d;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid #d4e6d4;
+      border-bottom-left-radius: 4px;
+    }
+    .msg.assistant p { margin-bottom: .5em; }
+    .msg.assistant p:last-child { margin-bottom: 0; }
+    .msg.assistant ul, .msg.assistant ol { padding-left: 1.4em; margin-bottom: .5em; }
+    .msg.assistant code {
+      background: #f0f5f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: .88em;
+    }
+
+    .msg.thinking {
+      align-self: flex-start;
+      background: #fff;
+      border: 1px solid #d4e6d4;
+      border-bottom-left-radius: 4px;
+      color: #6a8f6a;
+      font-style: italic;
+      font-size: .88rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dots span {
+      display: inline-block;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #5a9a5a;
+      animation: bounce .9s infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: .15s; }
+    .dots span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-5px); }
+    }
+
+    footer {
+      padding: 12px 16px;
+      background: #fff;
+      border-top: 1px solid #d4e6d4;
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    textarea {
+      flex: 1;
+      resize: none;
+      border: 1px solid #c4d9c4;
+      border-radius: 10px;
+      padding: 9px 12px;
+      font-size: .93rem;
+      font-family: inherit;
+      line-height: 1.45;
+      max-height: 140px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    textarea:focus { border-color: #2d6a2d; }
+
+    button {
+      background: #2d6a2d;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 9px 18px;
+      font-size: .93rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    button:hover { background: #245524; }
+    button:disabled { background: #8ab88a; cursor: default; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🌿 Eden</h1>
+      <div class="subtitle">Gardening Assistant</div>
+    </div>
+  </header>
+
+  <div id="chat"></div>
+
+  <footer>
+    <textarea id="input" rows="1" placeholder="Ask me anything about plants, pests, or gardening…"></textarea>
+    <button id="send">Send</button>
+  </footer>
+
+  <script>
+    const chat = document.getElementById('chat');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+
+    // Generate a stable thread ID for this browser session
+    const threadId = sessionStorage.getItem('threadId') || (() => {
+      const id = crypto.randomUUID();
+      sessionStorage.setItem('threadId', id);
+      return id;
+    })();
+
+    function addMessage(role, html) {
+      const el = document.createElement('div');
+      el.className = `msg ${role}`;
+      el.innerHTML = html;
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+      return el;
+    }
+
+    function addThinking() {
+      const el = document.createElement('div');
+      el.className = 'msg thinking';
+      el.innerHTML = '<span>Eden is thinking</span><div class="dots"><span></span><span></span><span></span></div>';
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+      return el;
+    }
+
+    async function send() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      input.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      addMessage('user', escapeHtml(text));
+      const thinking = addThinking();
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, thread_id: threadId }),
+        });
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        const data = await res.json();
+        thinking.remove();
+        addMessage('assistant', marked.parse(data.reply));
+      } catch (err) {
+        thinking.remove();
+        addMessage('assistant', `<em style="color:#c0392b">Error: ${escapeHtml(err.message)}</em>`);
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // Auto-resize textarea
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+    });
+
+    // Enter to send, Shift+Enter for newline
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+
+    sendBtn.addEventListener('click', send);
+    input.focus();
+  </script>
+</body>
+</html>
