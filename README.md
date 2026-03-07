@@ -25,6 +25,19 @@ Then install the package:
 uv sync --all-extras
 ```
 
+Optional dependency groups:
+
+| Group | Contents | When to install |
+|-------|----------|-----------------|
+| `rag` | `chromadb`, `sentence-transformers` | RAG pipeline (build index, chat) |
+| `server` | `fastapi`, `uvicorn` | Web chat UI |
+| `dev` | `pytest`, `pre-commit` | Development |
+
+Install specific groups:
+```bash
+uv pip install -e ".[rag,server]"
+```
+
 ## Scrapers
 
 There are three scrapers to collect data from the RHS website into JSONL files under `data/raw/`.
@@ -159,6 +172,33 @@ python -m eden.rag.cli chat --persist-dir data/chroma --backend ollama --model l
 ```
 
 > **Note:** Ollama tool-calling support varies by model. Use models that support it (e.g. `llama3.1`, `llama3.2`, `mistral-nemo`).
+
+### Web chat
+
+Start a local web server with a browser-based chat UI (requires the `server` extras):
+
+```bash
+uv pip install -e ".[rag,server]"
+eden-rag serve --persist-dir data/chroma
+```
+
+Then open `http://localhost:8000` in your browser.
+
+| Flag | Description |
+|------|-------------|
+| `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
+| `--model NAME` | Model name (default: `gpt-4o-mini`) |
+| `--k N` | Number of chunks to retrieve per query (default: 4) |
+| `--backend` | `openai` (default), `azure`, or `ollama` |
+| `--host HOST` | Host to bind to (default: `127.0.0.1`) |
+| `--port PORT` | Port to listen on (default: `8000`) |
+| `-v` | Verbose logging |
+
+Example — web chat using a local Ollama model:
+
+```bash
+eden-rag serve --persist-dir data/chroma --backend ollama --model qwen3.5:4b
+```
 
 ## Contributing
 
