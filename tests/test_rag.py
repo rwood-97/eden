@@ -1,17 +1,11 @@
-"""Tests for the RAG class public interface.
-
-Dependencies (chromadb collection, text_splitter, LLM client) are mocked so that:
-  1. Tests pass today with LangChain-backed implementations.
-  2. Tests still pass after the LangChain → chromadb migration — only
-     the mock setup in _make_rag() will need updating, not the assertions.
-"""
+"""Tests for the RAG class and index_documents function."""
 
 from __future__ import annotations
 
 import json
 from unittest.mock import MagicMock, patch
 
-from eden.rag.rag import RAG
+from eden.rag.rag import RAG, index_documents
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,15 +37,10 @@ def _make_tool_call(query: str, call_id: str = "call_abc") -> MagicMock:
 def _make_rag(model: str = "gpt-4o-mini") -> RAG:
     """Create a RAG instance with fully mocked chromadb dependencies."""
     collection = MagicMock()
-    text_splitter = MagicMock()
     client = MagicMock()
-
-    # text_splitter.split_documents returns a flat list of docs
-    text_splitter.split_documents.side_effect = lambda docs: docs
 
     return RAG(
         collection=collection,
-        text_splitter=text_splitter,
         client=client,
         model=model,
     )
@@ -184,8 +173,16 @@ def test_chat_system_prompt_added_on_first_message():
 # ---------------------------------------------------------------------------
 
 
+def _make_indexer():
+    """Create mocked collection and text_splitter for index_documents tests."""
+    collection = MagicMock()
+    text_splitter = MagicMock()
+    text_splitter.split_documents.side_effect = lambda docs: docs
+    return collection, text_splitter
+
+
 def test_index_documents_advice_records():
-    rag = _make_rag()
+    collection, text_splitter = _make_indexer()
     records = [
         {
             "url": "https://www.rhs.org.uk/grow-your-own/tomatoes",
@@ -195,13 +192,13 @@ def test_index_documents_advice_records():
         }
     ]
 
-    rag.index_documents(records, source_type="advice")
+    index_documents(collection, text_splitter, records, source_type="advice")
 
-    rag.collection.add.assert_called_once()
+    collection.add.assert_called_once()
 
 
 def test_index_documents_skips_empty_records():
-    rag = _make_rag()
+    collection, text_splitter = _make_indexer()
     records = [
         {
             "url": "https://www.rhs.org.uk/plants/1",
@@ -213,13 +210,13 @@ def test_index_documents_skips_empty_records():
         },
     ]
 
-    rag.index_documents(records, source_type="plants")
+    index_documents(collection, text_splitter, records, source_type="plants")
 
-    rag.collection.add.assert_not_called()
+    collection.add.assert_not_called()
 
 
 def test_index_documents_plants_records():
-    rag = _make_rag()
+    collection, text_splitter = _make_indexer()
     records = [
         {
             "url": "https://www.rhs.org.uk/plants/1234",
@@ -230,13 +227,13 @@ def test_index_documents_plants_records():
         }
     ]
 
-    rag.index_documents(records, source_type="plants")
+    index_documents(collection, text_splitter, records, source_type="plants")
 
-    rag.collection.add.assert_called_once()
+    collection.add.assert_called_once()
 
 
 def test_index_documents_multiple_records_batched():
-    rag = _make_rag()
+    collection, text_splitter = _make_indexer()
     records = [
         {
             "url": f"https://www.rhs.org.uk/advice/{i}",
@@ -246,10 +243,10 @@ def test_index_documents_multiple_records_batched():
         for i in range(5)
     ]
 
-    rag.index_documents(records, source_type="advice")
+    index_documents(collection, text_splitter, records, source_type="advice")
 
     # All docs added in one call (after splitting)
-    rag.collection.add.assert_called_once()
+    collection.add.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

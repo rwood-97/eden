@@ -43,6 +43,55 @@ _TOOL_SCHEMA = {
 }
 
 
+def index_documents(
+    collection: chromadb.Collection,
+    text_splitter: TokenTextSplitter,
+    records: list[dict[str, Any]],
+    source_type: str = "advice",
+) -> None:
+    """Index scraped JSONL records into the vector store.
+
+    Parameters
+    ----------
+    collection:
+        A ``chromadb.Collection`` instance (from ``get_retriever``).
+    text_splitter:
+        The text splitter used to chunk documents before indexing.
+    records:
+        List of scraped records. Schema depends on ``source_type``.
+    source_type:
+        One of ``"advice"``, ``"plants"``, or ``"pests"``.
+    """
+    documents = []
+    for record in records:
+        url = record.get("url", "")
+        title = _get_title(record, source_type)
+        body = _flatten_record(record, source_type)
+
+        if not body.strip():
+            continue
+
+        page_content = f"# {title}\n\n{body}" if title else body
+        documents.append(
+            {
+                "page_content": page_content,
+                "metadata": {"source": url, "title": title},
+            }
+        )
+
+    chunks = text_splitter.split_documents(documents)
+    logger.info("Indexing %d chunks from %d documents...", len(chunks), len(documents))
+    batch_size = 5000
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i : i + batch_size]
+        collection.add(
+            documents=[c["page_content"] for c in batch],
+            metadatas=[c["metadata"] for c in batch],
+            ids=[str(uuid.uuid4()) for _ in batch],
+        )
+    logger.info("Done indexing.")
+
+
 class RAG:
     """Conversational RAG over RHS gardening content.
 
@@ -53,8 +102,6 @@ class RAG:
     ----------
     collection:
         A ``chromadb.Collection`` instance (from ``get_retriever``).
-    text_splitter:
-        The text splitter used to chunk documents before indexing.
     client:
         An ``OpenAI`` client.
     model:
@@ -66,13 +113,11 @@ class RAG:
     def __init__(
         self,
         collection: chromadb.Collection,
-        text_splitter: TokenTextSplitter,
         client: OpenAI,
         model: str = "gpt-4o-mini",
         k: int = 4,
     ):
         self.collection = collection
-        self.text_splitter = text_splitter
         self.client = client
         self.model = model
         self.k = k
@@ -138,49 +183,6 @@ class RAG:
                 answer = msg.content or ""
                 history.append({"role": "assistant", "content": answer})
                 return answer
-
-    def index_documents(
-        self,
-        records: list[dict[str, Any]],
-        source_type: str = "advice",
-    ) -> None:
-        """Index scraped JSONL records into the vector store.
-
-        Parameters
-        ----------
-        records:
-            List of scraped records. Schema depends on ``source_type``.
-        source_type:
-            One of ``"advice"``, ``"plants"``, or ``"pests"``.
-        """
-        documents = []
-        for record in records:
-            url = record.get("url", "")
-            title = _get_title(record, source_type)
-            body = _flatten_record(record, source_type)
-
-            if not body.strip():
-                continue
-
-            page_content = f"# {title}\n\n{body}" if title else body
-            documents.append(
-                {
-                    "page_content": page_content,
-                    "metadata": {"source": url, "title": title},
-                }
-            )
-
-        chunks = self.text_splitter.split_documents(documents)
-        logger.info(
-            "Indexing %d chunks from %d documents...", len(chunks), len(documents)
-        )
-        if chunks:
-            self.collection.add(
-                documents=[c["page_content"] for c in chunks],
-                metadatas=[c["metadata"] for c in chunks],
-                ids=[str(uuid.uuid4()) for _ in chunks],
-            )
-        logger.info("Done indexing.")
 
     # ------------------------------------------------------------------
     # Internal helpers

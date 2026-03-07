@@ -134,7 +134,6 @@ python -m eden.rag.cli build-index --source-file data/raw/advice.jsonl --persist
 | `--source-type` | `advice` (default), `plants`, or `pests` — only used with `--source-file` |
 | `--persist-dir PATH` | Directory to write the Chroma index (default: `data/chroma`) |
 | `--n-records N` | Limit to first N records per file (useful for testing) |
-| `--backend` | `openai` (default), `azure`, or `ollama` |
 | `-v` | Verbose logging |
 
 ### Chat

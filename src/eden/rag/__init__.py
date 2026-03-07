@@ -4,7 +4,7 @@ from eden.rag.build_index import (
     setup_text_splitter,
 )
 from eden.rag.build_retriever import RetrieverConfig, get_retriever
-from eden.rag.rag import RAG
+from eden.rag.rag import RAG, index_documents
 
 __all__ = [
     "VectorStoreConfig",
@@ -13,4 +13,5 @@ __all__ = [
     "RetrieverConfig",
     "get_retriever",
     "RAG",
+    "index_documents",
 ]

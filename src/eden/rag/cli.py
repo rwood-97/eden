@@ -47,10 +47,13 @@ _KNOWN_SOURCE_TYPES = {"advice", "plants", "pests"}
 def _load_and_index(
     source_file: Path,
     source_type: str,
-    rag: object,
+    collection: object,
+    text_splitter: object,
     n_records: int | None,
 ) -> int:
     """Load records from *source_file* and index them. Returns record count."""
+    from eden.rag.rag import index_documents
+
     with open(source_file) as f:
         records = [json.loads(line) for line in f if line.strip()]
     if n_records is not None:
@@ -61,7 +64,7 @@ def _load_and_index(
         source_file,
         source_type,
     )
-    rag.index_documents(records, source_type=source_type)  # type: ignore[attr-defined]
+    index_documents(collection, text_splitter, records, source_type=source_type)  # type: ignore[arg-type]
     return len(records)
 
 
@@ -97,9 +100,6 @@ def build_index(
             "--n-records", help="Limit to first N records per file (default: all)."
         ),
     ] = None,
-    backend: Annotated[
-        str, typer.Option("--backend", help="API backend: openai or azure.")
-    ] = "openai",
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
     """Index scraped JSONL records into a persistent Chroma store.
@@ -148,22 +148,11 @@ def build_index(
         targets = [(source_file, source_type)]
 
     # Late import so the CLI is usable without rag deps when just --help
-    import os
-
-    from eden.azure_client import make_azure_client
-    from eden.openai_client import make_client
     from eden.rag.build_retriever import (
         DEFAULT_RETRIEVER_CONFIG,
         RetrieverConfig,
         get_retriever,
     )
-    from eden.rag.rag import RAG
-
-    if backend not in {"openai", "azure", "ollama"}:
-        err_msg = (
-            f"Invalid backend: {backend!r}. Must be one of: openai, azure, ollama."
-        )
-        raise ValueError(err_msg)
 
     config = RetrieverConfig(
         embedding_model_name=DEFAULT_RETRIEVER_CONFIG.embedding_model_name,
@@ -174,26 +163,10 @@ def build_index(
     )
 
     collection, text_splitter = get_retriever(config)
-    if backend == "azure":
-        client = make_azure_client()
-    elif backend == "ollama":
-        client = make_client(
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-            api_key="ollama",
-        )
-    else:
-        api_key = os.environ.get("OPENAI_API_KEY", "not-needed-for-indexing")
-        client = make_client(api_key=api_key)
-    rag = RAG(
-        collection=collection,
-        text_splitter=text_splitter,
-        client=client,
-        k=config.k,
-    )
 
     total = 0
     for fpath, stype in targets:
-        total += _load_and_index(fpath, stype, rag, n_records)
+        total += _load_and_index(fpath, stype, collection, text_splitter, n_records)
 
     typer.echo(f"Done. Indexed {total} records into {persist_dir}")
 
@@ -263,7 +236,7 @@ def chat(
         search_type=DEFAULT_RETRIEVER_CONFIG.search_type,
     )
 
-    collection, text_splitter = get_retriever(config)
+    collection, _ = get_retriever(config)
     if backend == "azure":
         client = make_azure_client(model=model)
     elif backend == "ollama":
@@ -275,7 +248,6 @@ def chat(
         client = make_client()
     rag = RAG(
         collection=collection,
-        text_splitter=text_splitter,
         client=client,
         model=model,
         k=config.k,
