@@ -302,7 +302,7 @@ def serve(
         str, typer.Option("--backend", help="API backend: openai, azure, or ollama.")
     ] = "ollama",
     host: Annotated[str, typer.Option("--host", help="Host to bind to.")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8000,
+    port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8080,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
     """Start the Eden web chat server."""

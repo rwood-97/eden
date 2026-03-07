@@ -182,7 +182,7 @@ uv sync --extra rag --extra server
 python -m eden.rag.cli serve --persist-dir data/chroma
 ```
 
-Then open `http://localhost:8000` in your browser.
+Then open `http://localhost:8080` in your browser.
 
 The UI supports multiple chat threads — use the sidebar to create new threads, switch between them, or delete old ones. Thread history is stored in the browser's `localStorage`.
 
@@ -193,7 +193,7 @@ The UI supports multiple chat threads — use the sidebar to create new threads,
 | `--k N` | Number of chunks to retrieve per query (default: 4) |
 | `--backend` | `ollama` (default), `openai`, or `azure` |
 | `--host HOST` | Host to bind to (default: `127.0.0.1`) |
-| `--port PORT` | Port to listen on (default: `8000`) |
+| `--port PORT` | Port to listen on (default: `8080`) |
 | `-v` | Verbose logging |
 
 Example — web chat using a local Ollama model:
