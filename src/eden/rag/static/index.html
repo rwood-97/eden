@@ -15,6 +15,7 @@
       height: 100dvh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     header {
@@ -25,9 +26,97 @@
       align-items: center;
       gap: 10px;
       box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      flex-shrink: 0;
+      z-index: 10;
     }
     header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: .02em; }
     header .subtitle { font-size: .8rem; opacity: .75; }
+
+    #app {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 220px;
+      background: #1e4d1e;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #new-thread-btn {
+      margin: 10px;
+      padding: 8px 12px;
+      background: #2d6a2d;
+      color: #fff;
+      border: 1px solid #4a8a4a;
+      border-radius: 8px;
+      font-size: .85rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: left;
+      transition: background .15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #new-thread-btn:hover { background: #3a7a3a; }
+
+    #thread-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 6px;
+    }
+    #thread-list::-webkit-scrollbar { width: 4px; }
+    #thread-list::-webkit-scrollbar-thumb { background: #3a6a3a; border-radius: 2px; }
+
+    .thread-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      color: #c8dfc8;
+      font-size: .83rem;
+      transition: background .12s;
+      position: relative;
+    }
+    .thread-item:hover { background: #2d5a2d; }
+    .thread-item.active { background: #2d6a2d; color: #fff; }
+
+    .thread-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .thread-delete {
+      display: none;
+      background: none;
+      border: none;
+      color: #a8caa8;
+      cursor: pointer;
+      font-size: .9rem;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .thread-item:hover .thread-delete { display: block; }
+    .thread-delete:hover { color: #ff9999; }
+
+    /* Main chat area */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
     #chat {
       flex: 1;
@@ -93,6 +182,16 @@
       40% { transform: translateY(-5px); }
     }
 
+    #empty-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8aaa8a;
+      font-size: .95rem;
+      font-style: italic;
+    }
+
     footer {
       padding: 12px 16px;
       background: #fff;
@@ -100,6 +199,7 @@
       display: flex;
       gap: 8px;
       align-items: flex-end;
+      flex-shrink: 0;
     }
     textarea {
       flex: 1;
@@ -116,7 +216,7 @@
     }
     textarea:focus { border-color: #2d6a2d; }
 
-    button {
+    button#send-btn {
       background: #2d6a2d;
       color: #fff;
       border: none;
@@ -128,8 +228,8 @@
       transition: background .15s;
       white-space: nowrap;
     }
-    button:hover { background: #245524; }
-    button:disabled { background: #8ab88a; cursor: default; }
+    button#send-btn:hover { background: #245524; }
+    button#send-btn:disabled { background: #8ab88a; cursor: default; }
   </style>
 </head>
 <body>
@@ -140,31 +240,124 @@
     </div>
   </header>
 
-  <div id="chat"></div>
+  <div id="app">
+    <nav id="sidebar">
+      <button id="new-thread-btn">&#43; New Chat</button>
+      <div id="thread-list"></div>
+    </nav>
 
-  <footer>
-    <textarea id="input" rows="1" placeholder="Ask me anything about plants, pests, or gardening…"></textarea>
-    <button id="send">Send</button>
-  </footer>
+    <div id="main">
+      <div id="chat"></div>
+      <footer>
+        <textarea id="input" rows="1" placeholder="Ask me anything about plants, pests, or gardening…"></textarea>
+        <button id="send-btn">Send</button>
+      </footer>
+    </div>
+  </div>
 
   <script>
-    const chat = document.getElementById('chat');
-    const input = document.getElementById('input');
-    const sendBtn = document.getElementById('send');
+    // ── Storage helpers ──────────────────────────────────────────────────────
+    const STORAGE_KEY = 'eden_threads';
 
-    // Generate a stable thread ID for this browser session
-    const threadId = sessionStorage.getItem('threadId') || (() => {
+    function loadThreads() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+      catch { return {}; }
+    }
+
+    function saveThreads(threads) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
+    }
+
+    // ── State ────────────────────────────────────────────────────────────────
+    let threads = loadThreads();       // { [id]: { name, messages: [{role, html}] } }
+    let activeId = null;
+
+    // ── DOM refs ─────────────────────────────────────────────────────────────
+    const chatEl       = document.getElementById('chat');
+    const inputEl      = document.getElementById('input');
+    const sendBtn      = document.getElementById('send-btn');
+    const threadList   = document.getElementById('thread-list');
+    const newThreadBtn = document.getElementById('new-thread-btn');
+
+    // ── Thread management ────────────────────────────────────────────────────
+    function createThread() {
       const id = crypto.randomUUID();
-      sessionStorage.setItem('threadId', id);
+      threads[id] = { name: 'New Chat', messages: [] };
+      saveThreads(threads);
       return id;
-    })();
+    }
 
-    function addMessage(role, html) {
+    function switchThread(id) {
+      activeId = id;
+      renderSidebar();
+      renderChat();
+      inputEl.focus();
+    }
+
+    function deleteThread(id) {
+      delete threads[id];
+      saveThreads(threads);
+      if (activeId === id) {
+        const ids = Object.keys(threads);
+        activeId = ids.length ? ids[ids.length - 1] : null;
+      }
+      renderSidebar();
+      renderChat();
+    }
+
+    function setThreadName(id, text) {
+      if (threads[id]) {
+        threads[id].name = text.slice(0, 40) || 'New Chat';
+        saveThreads(threads);
+      }
+    }
+
+    // ── Render sidebar ───────────────────────────────────────────────────────
+    function renderSidebar() {
+      threadList.innerHTML = '';
+      const ids = Object.keys(threads);
+      // Show newest first
+      for (let i = ids.length - 1; i >= 0; i--) {
+        const id = ids[i];
+        const t  = threads[id];
+        const item = document.createElement('div');
+        item.className = 'thread-item' + (id === activeId ? ' active' : '');
+        item.innerHTML = `<span class="thread-name">${escapeHtml(t.name)}</span>
+          <button class="thread-delete" title="Delete">✕</button>`;
+        item.addEventListener('click', () => switchThread(id));
+        item.querySelector('.thread-delete').addEventListener('click', e => {
+          e.stopPropagation();
+          deleteThread(id);
+        });
+        threadList.appendChild(item);
+      }
+    }
+
+    // ── Render chat ──────────────────────────────────────────────────────────
+    function renderChat() {
+      chatEl.innerHTML = '';
+      if (!activeId || !threads[activeId]) {
+        chatEl.innerHTML = '<div id="empty-state">Select or start a chat</div>';
+        return;
+      }
+      for (const msg of threads[activeId].messages) {
+        const el = document.createElement('div');
+        el.className = `msg ${msg.role}`;
+        el.innerHTML = msg.html;
+        chatEl.appendChild(el);
+      }
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    // ── Messaging ────────────────────────────────────────────────────────────
+    function appendMessage(role, html) {
+      threads[activeId].messages.push({ role, html });
+      saveThreads(threads);
       const el = document.createElement('div');
       el.className = `msg ${role}`;
       el.innerHTML = html;
-      chat.appendChild(el);
-      chat.scrollTop = chat.scrollHeight;
+      chatEl.appendChild(el);
+      chatEl.scrollTop = chatEl.scrollHeight;
       return el;
     }
 
@@ -172,38 +365,44 @@
       const el = document.createElement('div');
       el.className = 'msg thinking';
       el.innerHTML = '<span>Eden is thinking</span><div class="dots"><span></span><span></span><span></span></div>';
-      chat.appendChild(el);
-      chat.scrollTop = chat.scrollHeight;
+      chatEl.appendChild(el);
+      chatEl.scrollTop = chatEl.scrollHeight;
       return el;
     }
 
     async function send() {
-      const text = input.value.trim();
-      if (!text) return;
+      const text = inputEl.value.trim();
+      if (!text || !activeId) return;
 
-      input.value = '';
-      input.style.height = 'auto';
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
       sendBtn.disabled = true;
 
-      addMessage('user', escapeHtml(text));
+      // Name the thread from the first message
+      if (threads[activeId].messages.length === 0) {
+        setThreadName(activeId, text);
+        renderSidebar();
+      }
+
+      appendMessage('user', escapeHtml(text));
       const thinking = addThinking();
 
       try {
         const res = await fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, thread_id: threadId }),
+          body: JSON.stringify({ message: text, thread_id: activeId }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         thinking.remove();
-        addMessage('assistant', marked.parse(data.reply));
+        appendMessage('assistant', marked.parse(data.reply));
       } catch (err) {
         thinking.remove();
-        addMessage('assistant', `<em style="color:#c0392b">Error: ${escapeHtml(err.message)}</em>`);
+        appendMessage('assistant', `<em style="color:#c0392b">Error: ${escapeHtml(err.message)}</em>`);
       } finally {
         sendBtn.disabled = false;
-        input.focus();
+        inputEl.focus();
       }
     }
 
@@ -211,14 +410,18 @@
       return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
-    // Auto-resize textarea
-    input.addEventListener('input', () => {
-      input.style.height = 'auto';
-      input.style.height = input.scrollHeight + 'px';
+    // ── Event listeners ──────────────────────────────────────────────────────
+    newThreadBtn.addEventListener('click', () => {
+      const id = createThread();
+      switchThread(id);
     });
 
-    // Enter to send, Shift+Enter for newline
-    input.addEventListener('keydown', e => {
+    inputEl.addEventListener('input', () => {
+      inputEl.style.height = 'auto';
+      inputEl.style.height = inputEl.scrollHeight + 'px';
+    });
+
+    inputEl.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         send();
@@ -226,7 +429,18 @@
     });
 
     sendBtn.addEventListener('click', send);
-    input.focus();
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    const existingIds = Object.keys(threads);
+    if (existingIds.length === 0) {
+      // Start with one thread
+      activeId = createThread();
+    } else {
+      activeId = existingIds[existingIds.length - 1];
+    }
+    renderSidebar();
+    renderChat();
+    inputEl.focus();
   </script>
 </body>
 </html>

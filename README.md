@@ -184,6 +184,8 @@ python -m eden.rag.cli serve --persist-dir data/chroma
 
 Then open `http://localhost:8000` in your browser.
 
+The UI supports multiple chat threads — use the sidebar to create new threads, switch between them, or delete old ones. Thread history is stored in the browser's `localStorage`.
+
 | Flag | Description |
 |------|-------------|
 | `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
