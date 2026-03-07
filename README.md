@@ -35,7 +35,7 @@ Optional dependency groups:
 
 Install specific groups:
 ```bash
-uv pip install -e ".[rag,server]"
+uv sync --extra rag --extra server
 ```
 
 ## Scrapers
@@ -178,7 +178,7 @@ python -m eden.rag.cli chat --persist-dir data/chroma
 Start a local web server with a browser-based chat UI (requires the `server` extras):
 
 ```bash
-uv pip install -e ".[rag,server]"
+uv sync --extra rag --extra server
 eden-rag serve --persist-dir data/chroma
 ```
 
