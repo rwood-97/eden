@@ -168,6 +168,48 @@
       align-items: center;
       gap: 8px;
     }
+
+    .thinking-trace {
+      align-self: flex-start;
+      max-width: 72%;
+      margin-bottom: -6px;
+    }
+    .thinking-trace details {
+      background: #f0f7f0;
+      border: 1px solid #c8dfc8;
+      border-radius: 10px;
+      font-size: .82rem;
+      overflow: hidden;
+    }
+    .thinking-trace summary {
+      padding: 6px 12px;
+      cursor: pointer;
+      color: #5a8a5a;
+      font-style: italic;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .thinking-trace summary::-webkit-details-marker { display: none; }
+    .thinking-trace summary::before {
+      content: '▶';
+      font-size: .7rem;
+      transition: transform .15s;
+    }
+    .thinking-trace details[open] summary::before { transform: rotate(90deg); }
+    .thinking-trace pre {
+      margin: 0;
+      padding: 8px 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #4a6a4a;
+      border-top: 1px solid #c8dfc8;
+      font-family: inherit;
+      font-size: .81rem;
+      line-height: 1.5;
+    }
     .dots span {
       display: inline-block;
       width: 6px; height: 6px;
@@ -334,6 +376,13 @@
     }
 
     // ── Render chat ──────────────────────────────────────────────────────────
+    function makeThinkingTrace(text) {
+      const wrap = document.createElement('div');
+      wrap.className = 'thinking-trace';
+      wrap.innerHTML = `<details><summary>Thinking</summary><pre>${escapeHtml(text)}</pre></details>`;
+      return wrap;
+    }
+
     function renderChat() {
       chatEl.innerHTML = '';
       if (!activeId || !threads[activeId]) {
@@ -341,10 +390,14 @@
         return;
       }
       for (const msg of threads[activeId].messages) {
-        const el = document.createElement('div');
-        el.className = `msg ${msg.role}`;
-        el.innerHTML = msg.html;
-        chatEl.appendChild(el);
+        if (msg.role === 'thinking') {
+          chatEl.appendChild(makeThinkingTrace(msg.html));
+        } else {
+          const el = document.createElement('div');
+          el.className = `msg ${msg.role}`;
+          el.innerHTML = msg.html;
+          chatEl.appendChild(el);
+        }
       }
       chatEl.scrollTop = chatEl.scrollHeight;
     }
@@ -353,9 +406,14 @@
     function appendMessage(role, html) {
       threads[activeId].messages.push({ role, html });
       saveThreads(threads);
-      const el = document.createElement('div');
-      el.className = `msg ${role}`;
-      el.innerHTML = html;
+      let el;
+      if (role === 'thinking') {
+        el = makeThinkingTrace(html);
+      } else {
+        el = document.createElement('div');
+        el.className = `msg ${role}`;
+        el.innerHTML = html;
+      }
       chatEl.appendChild(el);
       chatEl.scrollTop = chatEl.scrollHeight;
       return el;
@@ -396,6 +454,7 @@
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data = await res.json();
         thinking.remove();
+        if (data.thinking) appendMessage('thinking', data.thinking);
         appendMessage('assistant', marked.parse(data.reply));
       } catch (err) {
         thinking.remove();

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from eden.rag.rag import ChatResult
 from eden.rag.server import app, configure
 
 
@@ -28,7 +29,9 @@ def client():
 @pytest.fixture()
 def configured_client():
     mock_rag = MagicMock()
-    mock_rag.chat.return_value = "Tomatoes need full sun and regular watering."
+    mock_rag.chat.return_value = ChatResult(
+        reply="Tomatoes need full sun and regular watering.", thinking=""
+    )
     configure(mock_rag)
     return TestClient(app), mock_rag
 
@@ -91,6 +94,24 @@ def test_chat_thread_id_echoed_in_response(configured_client):
     client, mock_rag = configured_client
     response = client.post("/chat", json={"message": "Hello", "thread_id": "my-thread"})
     assert response.json()["thread_id"] == "my-thread"
+
+
+def test_chat_thinking_included_in_response(configured_client):
+    client, mock_rag = configured_client
+    mock_rag.chat.return_value = ChatResult(
+        reply="Use insecticidal soap.", thinking="I should search for aphid remedies."
+    )
+    response = client.post("/chat", json={"message": "How do I control aphids?"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["reply"] == "Use insecticidal soap."
+    assert data["thinking"] == "I should search for aphid remedies."
+
+
+def test_chat_thinking_empty_when_no_reasoning(configured_client):
+    client, _ = configured_client
+    response = client.post("/chat", json={"message": "Hello"})
+    assert response.json()["thinking"] == ""
 
 
 def test_chat_missing_message_returns_422(configured_client):

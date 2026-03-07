@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     thread_id: str
+    thinking: str = ""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -42,5 +43,7 @@ def index() -> str:
 def chat(req: ChatRequest) -> ChatResponse:
     if _rag is None:
         raise HTTPException(status_code=503, detail="RAG not initialised.")
-    reply = _rag.chat(req.message, thread_id=req.thread_id)
-    return ChatResponse(reply=reply, thread_id=req.thread_id)
+    result = _rag.chat(req.message, thread_id=req.thread_id)
+    return ChatResponse(
+        reply=result.reply, thread_id=req.thread_id, thinking=result.thinking
+    )

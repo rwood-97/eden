@@ -1,7 +1,9 @@
 import json
 import logging
+import re
 import uuid
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Any
 
 import chromadb
@@ -12,6 +14,53 @@ from eden.data_utils import get_title as _get_title
 from eden.rag.build_index import TokenTextSplitter
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChatResult:
+    """Result of a RAG chat turn."""
+
+    reply: str
+    thinking: str = field(default="")
+
+
+def _extract_thinking(msg: Any) -> tuple[str, str]:
+    """Extract a reasoning/thinking trace from a chat completion message.
+
+    Tries each format in order, returning on the first match:
+
+    * ``message.reasoning`` — vLLM / gpt-oss Harmony format.
+    * ``message.reasoning_content`` — Ollama and other OpenAI-compatible servers.
+    * ``<think>…</think>`` tags in ``message.content`` — Qwen3 and similar models.
+    * Neither — models without reasoning; thinking is returned as ``""``.
+
+    Returns ``(thinking, cleaned_content)`` where *cleaned_content* has any
+    ``<think>`` block stripped so it is not shown to the user.
+    """
+    raw_content = msg.content or ""
+
+    # 1. vLLM / gpt-oss Harmony format
+    reasoning = getattr(msg, "reasoning", None)
+    if reasoning:
+        return str(reasoning).strip(), raw_content
+
+    # 2. Ollama-style dedicated field
+    reasoning_content = getattr(msg, "reasoning_content", None)
+    if reasoning_content:
+        return str(reasoning_content).strip(), raw_content
+
+    # 3. <think>…</think> embedded in content
+    match = re.search(r"<think>(.*?)</think>", raw_content, re.DOTALL)
+    if match:
+        thinking = match.group(1).strip()
+        before = raw_content[: match.start()].strip()
+        after = raw_content[match.end() :].strip()
+        cleaned = (before + (" " if before and after else "") + after).strip()
+        return thinking, cleaned
+
+    # 4. No thinking trace
+    return "", raw_content
+
 
 SYSTEM_PROMPT = (
     "You are a helpful gardening assistant with expertise in plants, pests, and "
@@ -127,12 +176,17 @@ class RAG:
     # Public API
     # ------------------------------------------------------------------
 
-    def chat(self, message: str, thread_id: str = "default") -> str:
-        """Send a message and return the assistant reply.
+    def chat(self, message: str, thread_id: str = "default") -> ChatResult:
+        """Send a message and return the assistant reply with any reasoning trace.
 
         Maintains conversation history per ``thread_id``. The LLM may call
         ``search_gardening_knowledge`` one or more times before returning a
         final answer.
+
+        Reasoning traces are collected across all turns (including intermediate
+        tool-call turns) and returned in ``ChatResult.thinking``. Works with
+        vLLM (``reasoning`` field), Ollama (``reasoning_content`` field),
+        embedded ``<think>`` tokens, and models with no reasoning (empty string).
         """
         history = self._threads[thread_id]
 
@@ -140,6 +194,8 @@ class RAG:
             history.append({"role": "system", "content": SYSTEM_PROMPT})
 
         history.append({"role": "user", "content": message})
+
+        thinking_traces: list[str] = []
 
         while True:
             response = self.client.chat.completions.create(
@@ -149,6 +205,9 @@ class RAG:
                 tool_choice="auto",
             )
             msg = response.choices[0].message
+            turn_thinking, cleaned_content = _extract_thinking(msg)
+            if turn_thinking:
+                thinking_traces.append(turn_thinking)
 
             if msg.tool_calls:
                 history.append(
@@ -180,9 +239,9 @@ class RAG:
                         }
                     )
             else:
-                answer = msg.content or ""
-                history.append({"role": "assistant", "content": answer})
-                return answer
+                history.append({"role": "assistant", "content": msg.content})
+                thinking = "\n\n---\n\n".join(thinking_traces)
+                return ChatResult(reply=cleaned_content, thinking=thinking)
 
     # ------------------------------------------------------------------
     # Internal helpers

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-from eden.rag.rag import RAG, index_documents
+from eden.rag.rag import RAG, ChatResult, _extract_thinking, index_documents
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -17,6 +17,9 @@ def _make_openai_message(content: str | None, tool_calls=None) -> MagicMock:
     msg = MagicMock()
     msg.content = content
     msg.tool_calls = tool_calls
+    # Ensure reasoning fields are absent so _extract_thinking falls through correctly
+    msg.reasoning = None
+    msg.reasoning_content = None
     return msg
 
 
@@ -51,7 +54,7 @@ def _make_rag(model: str = "qwen3.5:4b") -> RAG:
 # ---------------------------------------------------------------------------
 
 
-def test_chat_returns_string():
+def test_chat_returns_chat_result():
     rag = _make_rag()
     rag.client.chat.completions.create.return_value = _make_openai_response(
         "Roses need full sun and well-drained soil."
@@ -59,8 +62,9 @@ def test_chat_returns_string():
 
     result = rag.chat("How do I grow roses?")
 
-    assert isinstance(result, str)
-    assert result == "Roses need full sun and well-drained soil."
+    assert isinstance(result, ChatResult)
+    assert result.reply == "Roses need full sun and well-drained soil."
+    assert result.thinking == ""
 
 
 def test_chat_empty_content_returns_empty_string():
@@ -69,7 +73,7 @@ def test_chat_empty_content_returns_empty_string():
 
     result = rag.chat("Hello")
 
-    assert result == ""
+    assert result.reply == ""
 
 
 def test_chat_calls_llm_with_user_message():
@@ -99,7 +103,7 @@ def test_chat_with_tool_call_triggers_search_then_responds():
         result = rag.chat("How do I control aphids?")
 
     mock_search.assert_called_once_with("aphid control")
-    assert result == "Use insecticidal soap."
+    assert result.reply == "Use insecticidal soap."
     assert rag.client.chat.completions.create.call_count == 2
 
 
@@ -166,6 +170,77 @@ def test_chat_system_prompt_added_on_first_message():
     messages = rag.client.chat.completions.create.call_args.kwargs["messages"]
     assert messages[0]["role"] == "system"
     assert "gardening" in messages[0]["content"].lower()
+
+
+# ---------------------------------------------------------------------------
+# _extract_thinking()
+# ---------------------------------------------------------------------------
+
+
+def test_extract_thinking_no_reasoning_returns_empty():
+    msg = _make_openai_message("Hello there.")
+    thinking, content = _extract_thinking(msg)
+    assert thinking == ""
+    assert content == "Hello there."
+
+
+def test_extract_thinking_think_tags():
+    msg = _make_openai_message("<think>step by step reasoning</think>Final answer.")
+    thinking, content = _extract_thinking(msg)
+    assert thinking == "step by step reasoning"
+    assert content == "Final answer."
+
+
+def test_extract_thinking_reasoning_content_field():
+    msg = _make_openai_message("Final answer.")
+    msg.reasoning_content = "Ollama reasoning here"
+    thinking, content = _extract_thinking(msg)
+    assert thinking == "Ollama reasoning here"
+    assert content == "Final answer."
+
+
+def test_extract_thinking_reasoning_field_takes_priority():
+    msg = _make_openai_message("Final answer.")
+    msg.reasoning = "vLLM/gpt-oss reasoning"
+    msg.reasoning_content = "should be ignored"
+    thinking, content = _extract_thinking(msg)
+    assert thinking == "vLLM/gpt-oss reasoning"
+    assert content == "Final answer."
+
+
+def test_chat_thinking_extracted_from_think_tags():
+    rag = _make_rag()
+    rag.client.chat.completions.create.return_value = _make_openai_response(
+        "<think>I should search for rose care tips.</think>Roses love full sun."
+    )
+
+    result = rag.chat("How do I grow roses?")
+
+    assert result.thinking == "I should search for rose care tips."
+    assert result.reply == "Roses love full sun."
+
+
+def test_chat_thinking_collected_across_tool_turns():
+    rag = _make_rag()
+    tc = _make_tool_call("aphid control")
+
+    first_msg = _make_openai_message(None, tool_calls=[tc])
+    first_msg.content = "<think>I need to search first.</think>"
+    second_msg = _make_openai_message("<think>Now I can answer.</think>Use soap spray.")
+
+    resp1 = MagicMock()
+    resp1.choices[0].message = first_msg
+    resp2 = MagicMock()
+    resp2.choices[0].message = second_msg
+
+    rag.client.chat.completions.create.side_effect = [resp1, resp2]
+
+    with patch.object(rag, "_search", return_value="Aphid info"):
+        result = rag.chat("How do I control aphids?")
+
+    assert "I need to search first." in result.thinking
+    assert "Now I can answer." in result.thinking
+    assert result.reply == "Use soap spray."
 
 
 # ---------------------------------------------------------------------------

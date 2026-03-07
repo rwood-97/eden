@@ -268,8 +268,10 @@ def chat(
             break
 
         try:
-            reply = rag.chat(user_input)
-            typer.echo(f"\nEden: {reply}\n")
+            result = rag.chat(user_input)
+            if result.thinking:
+                typer.echo(f"\n[Thinking]\n{result.thinking}\n")
+            typer.echo(f"\nEden: {result.reply}\n")
         except Exception as exc:
             typer.echo(f"Error: {exc}", err=True)
             sys.exit(1)
