@@ -179,7 +179,7 @@ Start a local web server with a browser-based chat UI (requires the `server` ext
 
 ```bash
 uv sync --extra rag --extra server
-eden-rag serve --persist-dir data/chroma
+python -m eden.rag.cli serve --persist-dir data/chroma
 ```
 
 Then open `http://localhost:8000` in your browser.
@@ -197,7 +197,7 @@ Then open `http://localhost:8000` in your browser.
 Example — web chat using a local Ollama model:
 
 ```bash
-eden-rag serve --persist-dir data/chroma
+python -m eden.rag.cli serve --persist-dir data/chroma
 ```
 
 ## Contributing
