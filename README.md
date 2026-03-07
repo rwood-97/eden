@@ -70,9 +70,9 @@ Scraping is resumable by default — a `.checkpoint` file tracks progress. Re-ru
 
 There are three options for which LLM backend to use for synthetic data generation and RAG:
 
-1. OpenAI (default) - e.g. when using vLLM
-2. Azure OpenAI
-3. Ollama - local models via Ollama
+1. Ollama (default) - local models via Ollama
+2. OpenAI - e.g. when using vLLM
+3. Azure OpenAI
 
 To use these you will need to set the required environment variables in a `.env` file.
 
@@ -111,17 +111,17 @@ Output is written to `data/synth/` as a JSONL file named `{source_type}_{model}_
 | `--source-type` | `advice` (default), `plants`, or `pests` |
 | `--n-records N` | Number of source records to sample (default: all) |
 | `--pairs-per-record N` | QA pairs per record (default: 5) |
-| `--model NAME` | Model name for the API (default: `gpt-oss-120b`) |
-| `--backend` | `openai` (default) or `azure` |
+| `--model NAME` | Model name for the API (default: `qwen3.5:4b`) |
+| `--backend` | `ollama` (default), `openai`, or `azure` |
 | `--source-path PATH` | Source JSONL file (default: `data/raw/{source_type}.jsonl`) |
 | `--save-path PATH` | Output directory (default: `data/synth/`) |
 | `--overwrite` | Overwrite existing output file |
 | `-v` | Verbose logging |
 
-Example — generate QA pairs from 5 advice records using Azure OpenAI:
+Example — generate QA pairs from 5 advice records using Ollama:
 
 ```bash
-python -m eden.synth_data_generation.generate_synthetic_queries --n-records 5 --pairs-per-record 2 --source-type advice --backend azure --model gpt-4o -v
+python -m eden.synth_data_generation.generate_synthetic_queries --n-records 5 --pairs-per-record 2 --source-type advice -v
 ```
 
 ## RAG pipeline
@@ -160,18 +160,18 @@ python -m eden.rag.cli chat --persist-dir data/chroma
 | Flag | Description |
 |------|-------------|
 | `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
-| `--model NAME` | Model name (default: `gpt-4o-mini`) |
+| `--model NAME` | Model name (default: `qwen3.5:4b`) |
 | `--k N` | Number of chunks to retrieve per query (default: 4) |
-| `--backend` | `openai` (default), `azure`, or `ollama` |
+| `--backend` | `ollama` (default), `openai`, or `azure` |
 | `-v` | Verbose logging |
 
 Example — chat using a local Ollama model:
 
 ```bash
-python -m eden.rag.cli chat --persist-dir data/chroma --backend ollama --model llama3.2
+python -m eden.rag.cli chat --persist-dir data/chroma
 ```
 
-> **Note:** Ollama tool-calling support varies by model. Use models that support it (e.g. `llama3.1`, `llama3.2`, `mistral-nemo`).
+> **Note:** Ollama tool-calling support varies by model. Use models that support it (e.g. `qwen3.5:4b`, `llama3.1`, `llama3.2`, `mistral-nemo`).
 
 ### Web chat
 
@@ -187,9 +187,9 @@ Then open `http://localhost:8000` in your browser.
 | Flag | Description |
 |------|-------------|
 | `--persist-dir PATH` | Chroma index directory (default: `data/chroma`) |
-| `--model NAME` | Model name (default: `gpt-4o-mini`) |
+| `--model NAME` | Model name (default: `qwen3.5:4b`) |
 | `--k N` | Number of chunks to retrieve per query (default: 4) |
-| `--backend` | `openai` (default), `azure`, or `ollama` |
+| `--backend` | `ollama` (default), `openai`, or `azure` |
 | `--host HOST` | Host to bind to (default: `127.0.0.1`) |
 | `--port PORT` | Port to listen on (default: `8000`) |
 | `-v` | Verbose logging |
@@ -197,7 +197,7 @@ Then open `http://localhost:8000` in your browser.
 Example — web chat using a local Ollama model:
 
 ```bash
-eden-rag serve --persist-dir data/chroma --backend ollama --model qwen3.5:4b
+eden-rag serve --persist-dir data/chroma
 ```
 
 ## Contributing

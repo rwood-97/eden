@@ -34,7 +34,7 @@ def _make_tool_call(query: str, call_id: str = "call_abc") -> MagicMock:
     return tc
 
 
-def _make_rag(model: str = "gpt-4o-mini") -> RAG:
+def _make_rag(model: str = "qwen3.5:4b") -> RAG:
     """Create a RAG instance with fully mocked chromadb dependencies."""
     collection = MagicMock()
     client = MagicMock()

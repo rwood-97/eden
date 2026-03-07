@@ -187,14 +187,14 @@ def chat(
     model: Annotated[
         str,
         typer.Option("--model", help="OpenAI model name."),
-    ] = "gpt-4o-mini",
+    ] = "qwen3.5:4b",
     k: Annotated[
         int,
         typer.Option("--k", help="Number of chunks to retrieve per query."),
     ] = 4,
     backend: Annotated[
         str, typer.Option("--backend", help="API backend: openai, azure, or ollama.")
-    ] = "openai",
+    ] = "ollama",
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,
 ) -> None:
     """Start an interactive gardening chat session grounded in the indexed knowledge base."""
@@ -291,14 +291,14 @@ def serve(
     model: Annotated[
         str,
         typer.Option("--model", help="OpenAI model name."),
-    ] = "gpt-4o-mini",
+    ] = "qwen3.5:4b",
     k: Annotated[
         int,
         typer.Option("--k", help="Number of chunks to retrieve per query."),
     ] = 4,
     backend: Annotated[
         str, typer.Option("--backend", help="API backend: openai, azure, or ollama.")
-    ] = "openai",
+    ] = "ollama",
     host: Annotated[str, typer.Option("--host", help="Host to bind to.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8000,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging.")] = False,

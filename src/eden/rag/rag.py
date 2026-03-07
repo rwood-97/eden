@@ -105,7 +105,7 @@ class RAG:
     client:
         An ``OpenAI`` client.
     model:
-        Model name to use (default ``gpt-4o-mini``).
+        Model name to use (default ``qwen3.5:4b``).
     k:
         Number of chunks to retrieve per query.
     """
@@ -114,7 +114,7 @@ class RAG:
         self,
         collection: chromadb.Collection,
         client: OpenAI,
-        model: str = "gpt-4o-mini",
+        model: str = "qwen3.5:4b",
         k: int = 4,
     ):
         self.collection = collection

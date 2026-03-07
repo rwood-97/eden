@@ -87,8 +87,8 @@ def generate_qa_pairs(
     save_path: Path = DEFAULT_SAVE_PATH,
     source_path: Path = DEFAULT_SOURCE_DATA_DIR / "advice.jsonl",
     source_type: str = "advice",
-    model: str = "gpt-oss-120b",
-    backend: str = "openai",
+    model: str = "qwen3.5:4b",
+    backend: str = "ollama",
     overwrite: bool = False,
 ) -> None:
     """Generate synthetic QA pairs from scraped RHS data.
@@ -110,7 +110,7 @@ def generate_qa_pairs(
     model:
         Model name for the API request.
     backend:
-        One of ``"openai"`` (default) or ``"azure"``. Controls which client is used.
+        One of ``"ollama"`` (default), ``"openai"``, or ``"azure"``. Controls which client is used.
     overwrite:
         If ``False``, raise ``FileExistsError`` if the output file already exists.
     """
@@ -156,7 +156,17 @@ def generate_qa_pairs(
             err_msg = f"Output file already exists: {out_path}."
             raise FileExistsError(err_msg)
 
-    client = make_azure_client(model=model) if backend == "azure" else make_client()
+    import os
+
+    if backend == "azure":
+        client = make_azure_client(model=model)
+    elif backend == "ollama":
+        client = make_client(
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_key="ollama",
+        )
+    else:
+        client = make_client()
 
     with open(out_path, "w") as out:
         logger.info("Writing to %s", out_path)
@@ -238,10 +248,10 @@ def main(
     source_type: Annotated[
         str, typer.Option(help="advice | plants | pests")
     ] = "advice",
-    model: Annotated[str, typer.Option(help="Model name")] = "gpt-oss-120b",
+    model: Annotated[str, typer.Option(help="Model name")] = "qwen3.5:4b",
     backend: Annotated[
-        str, typer.Option(help="API backend: openai or azure")
-    ] = "openai",
+        str, typer.Option(help="API backend: openai, azure, or ollama")
+    ] = "ollama",
     overwrite: Annotated[bool, typer.Option(help="Overwrite existing output")] = False,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging")] = False,
 ) -> None:
@@ -253,8 +263,10 @@ def main(
     if source_type not in {"advice", "plants", "pests"}:
         err_msg = f"Invalid source_type: {source_type!r}. Must be one of: advice, plants, pests."
         raise ValueError(err_msg)
-    if backend not in {"openai", "azure"}:
-        err_msg = f"Invalid backend: {backend!r}. Must be one of: openai, azure."
+    if backend not in {"openai", "azure", "ollama"}:
+        err_msg = (
+            f"Invalid backend: {backend!r}. Must be one of: openai, azure, ollama."
+        )
         raise ValueError(err_msg)
 
     generate_qa_pairs(
