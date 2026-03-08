@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -141,3 +142,114 @@ def test_configure_can_be_called_multiple_times():
     configure(rag_a)
     configure(rag_b)
     assert srv._rag is rag_b
+
+
+# ---------------------------------------------------------------------------
+# POST /chat/stream
+# ---------------------------------------------------------------------------
+
+
+def _fake_stream(*events):
+    """Return a chat_stream function that yields the given event dicts."""
+
+    def _chat_stream(message, thread_id="default"):  # noqa: ARG001
+        yield from events
+
+    return _chat_stream
+
+
+@pytest.fixture()
+def stream_client():
+    mock_rag = MagicMock()
+    mock_rag.chat_stream = _fake_stream(
+        {"type": "token", "content": "Hello "},
+        {"type": "token", "content": "world"},
+        {"type": "done"},
+    )
+    configure(mock_rag)
+    return TestClient(app), mock_rag
+
+
+def _parse_sse(text: str) -> list[dict]:
+    return [
+        json.loads(line[6:])
+        for line in text.split("\n\n")
+        if line.strip().startswith("data: ")
+    ]
+
+
+def test_chat_stream_returns_503_when_rag_not_configured(client):
+    response = client.post("/chat/stream", json={"message": "Hello"})
+    assert response.status_code == 503
+
+
+def test_chat_stream_content_type(stream_client):
+    client, _ = stream_client
+    response = client.post("/chat/stream", json={"message": "Hello"})
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+
+
+def test_chat_stream_yields_token_events(stream_client):
+    client, _ = stream_client
+    response = client.post("/chat/stream", json={"message": "Hello"})
+    events = _parse_sse(response.text)
+    token_events = [e for e in events if e["type"] == "token"]
+    assert token_events == [
+        {"type": "token", "content": "Hello "},
+        {"type": "token", "content": "world"},
+    ]
+
+
+def test_chat_stream_ends_with_done(stream_client):
+    client, _ = stream_client
+    response = client.post("/chat/stream", json={"message": "Hello"})
+    events = _parse_sse(response.text)
+    assert events[-1] == {"type": "done"}
+
+
+def test_chat_stream_includes_thinking_event():
+    mock_rag = MagicMock()
+    mock_rag.chat_stream = _fake_stream(
+        {"type": "token", "content": "Answer"},
+        {"type": "thinking", "content": "I reasoned hard"},
+        {"type": "done"},
+    )
+    configure(mock_rag)
+    client = TestClient(app)
+    events = _parse_sse(client.post("/chat/stream", json={"message": "Hi"}).text)
+    assert {"type": "thinking", "content": "I reasoned hard"} in events
+
+
+def test_chat_stream_includes_searching_event():
+    mock_rag = MagicMock()
+    mock_rag.chat_stream = _fake_stream(
+        {"type": "searching", "query": "tomato pests"},
+        {"type": "token", "content": "Use neem oil."},
+        {"type": "done"},
+    )
+    configure(mock_rag)
+    client = TestClient(app)
+    events = _parse_sse(client.post("/chat/stream", json={"message": "Tomato?"}).text)
+    assert {"type": "searching", "query": "tomato pests"} in events
+
+
+def test_chat_stream_passes_thread_id():
+    calls = []
+
+    def _stream(message, thread_id="default"):
+        calls.append((message, thread_id))
+        yield {"type": "done"}
+
+    mock_rag = MagicMock()
+    mock_rag.chat_stream = _stream
+    configure(mock_rag)
+    client = TestClient(app)
+    client.post("/chat/stream", json={"message": "Hi", "thread_id": "my-thread"})
+    assert calls == [("Hi", "my-thread")]
+
+
+def test_chat_stream_missing_message_returns_422(stream_client):
+    client, _ = stream_client
+    response = client.post("/chat/stream", json={})
+    assert response.status_code == 422

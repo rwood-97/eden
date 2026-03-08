@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 app = FastAPI(title="Eden Gardening Assistant")
@@ -37,6 +38,18 @@ class ChatResponse(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return _HTML()
+
+
+@app.post("/chat/stream")
+def chat_stream(req: ChatRequest) -> StreamingResponse:
+    if _rag is None:
+        raise HTTPException(status_code=503, detail="RAG not initialised.")
+
+    def event_stream():
+        for event in _rag.chat_stream(req.message, thread_id=req.thread_id):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.post("/chat", response_model=ChatResponse)

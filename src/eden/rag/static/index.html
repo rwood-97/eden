@@ -606,20 +606,68 @@
         renderSidebar();
       }
       appendMessage('user', escapeHtml(text));
-      const thinking = addThinking();
+      const thinkingEl = addThinking();
+      let thinkingRemoved = false;
+      function removeThinking() {
+        if (!thinkingRemoved) { thinkingEl.remove(); thinkingRemoved = true; }
+      }
+
+      let assistantEl = null;
+      let accText = '';
+
       try {
-        const res = await fetch('/chat', {
+        const res = await fetch('/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: text, thread_id: activeId }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
-        const data = await res.json();
-        thinking.remove();
-        if (data.thinking) appendMessage('thinking', data.thinking);
-        appendMessage('assistant', marked.parse(data.reply));
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            let event;
+            try { event = JSON.parse(line.slice(6)); } catch { continue; }
+
+            if (event.type === 'searching') {
+              thinkingEl.querySelector('span').textContent = `Searching: ${event.query}`;
+            } else if (event.type === 'token') {
+              if (!assistantEl) {
+                removeThinking();
+                assistantEl = document.createElement('div');
+                assistantEl.className = 'msg assistant';
+                assistantEl.style.animation = 'up .2s cubic-bezier(.22,.61,.36,1) both';
+                chatEl.appendChild(assistantEl);
+              }
+              accText += event.content;
+              assistantEl.innerHTML = marked.parse(accText);
+              chatEl.scrollTop = chatEl.scrollHeight;
+            } else if (event.type === 'thinking') {
+              const traceEl = makeThinkingTrace(event.content);
+              chatEl.insertBefore(traceEl, assistantEl);
+              threads[activeId].messages.push({ role: 'thinking', html: event.content });
+              saveThreads(threads);
+            } else if (event.type === 'done') {
+              removeThinking();
+              if (assistantEl) {
+                threads[activeId].messages.push({ role: 'assistant', html: marked.parse(accText) });
+                saveThreads(threads);
+              }
+            }
+          }
+        }
       } catch (err) {
-        thinking.remove();
+        removeThinking();
         appendMessage('assistant', `<em style="color:#b03030">Error: ${escapeHtml(err.message)}</em>`);
       } finally {
         sendBtn.disabled = false;

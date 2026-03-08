@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -90,6 +91,59 @@ _TOOL_SCHEMA = {
         },
     },
 }
+
+
+class _ThinkStreamFilter:
+    """Strips <think>…</think> blocks from a streaming content feed.
+
+    Content outside think blocks is returned from ``push()`` for immediate
+    emission; content inside think blocks is buffered and returned via
+    ``get_reasoning()`` after ``flush()`` is called.
+    """
+
+    def __init__(self) -> None:
+        self._buf = ""
+        self._in_think = False
+        self._reasoning: list[str] = []
+
+    def push(self, text: str) -> str:
+        """Feed a chunk; returns the portion that should be emitted as content."""
+        self._buf += text
+        output = ""
+        while True:
+            if self._in_think:
+                end = self._buf.find("</think>")
+                if end == -1:
+                    safe = max(0, len(self._buf) - len("</think>"))
+                    self._reasoning.append(self._buf[:safe])
+                    self._buf = self._buf[safe:]
+                    break
+                self._reasoning.append(self._buf[:end])
+                self._buf = self._buf[end + len("</think>") :]
+                self._in_think = False
+            else:
+                start = self._buf.find("<think>")
+                if start == -1:
+                    safe = max(0, len(self._buf) - len("<think>"))
+                    output += self._buf[:safe]
+                    self._buf = self._buf[safe:]
+                    break
+                output += self._buf[:start]
+                self._buf = self._buf[start + len("<think>") :]
+                self._in_think = True
+        return output
+
+    def flush(self) -> str:
+        """Flush at end of stream; returns any remaining emittable content."""
+        if self._in_think:
+            self._reasoning.append(self._buf)
+            self._buf = ""
+            return ""
+        out, self._buf = self._buf, ""
+        return out
+
+    def get_reasoning(self) -> str:
+        return "".join(self._reasoning).strip()
 
 
 def index_documents(
@@ -242,6 +296,132 @@ class RAG:
                 history.append({"role": "assistant", "content": msg.content})
                 thinking = "\n\n---\n\n".join(thinking_traces)
                 return ChatResult(reply=cleaned_content, thinking=thinking)
+
+    def chat_stream(self, message: str, thread_id: str = "default") -> Iterator[dict]:
+        """Like ``chat()`` but yields SSE-style event dicts as the response streams.
+
+        Yields dicts with a ``type`` key:
+
+        * ``{"type": "searching", "query": "..."}`` — tool call in progress.
+        * ``{"type": "token", "content": "..."}`` — streamed reply token.
+        * ``{"type": "thinking", "content": "..."}`` — reasoning trace (after tokens).
+        * ``{"type": "done"}`` — stream complete.
+        """
+        history = self._threads[thread_id]
+
+        if not history:
+            history.append({"role": "system", "content": SYSTEM_PROMPT})
+
+        history.append({"role": "user", "content": message})
+
+        thinking_traces: list[str] = []
+
+        while True:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=history,
+                tools=[_TOOL_SCHEMA],
+                tool_choice="auto",
+                stream=True,
+            )
+
+            content_acc: list[str] = []
+            reasoning_acc: list[str] = []
+            tool_calls_map: dict[int, dict] = {}
+            is_tool_turn = False
+            think_filter = _ThinkStreamFilter()
+
+            for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+
+                # Dedicated reasoning fields (Ollama reasoning_content, vLLM reasoning)
+                rc = getattr(delta, "reasoning_content", None) or getattr(
+                    delta, "reasoning", None
+                )
+                if rc:
+                    reasoning_acc.append(rc)
+
+                # Tool call deltas
+                if delta.tool_calls:
+                    is_tool_turn = True
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_map:
+                            tool_calls_map[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            tool_calls_map[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls_map[idx]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_map[idx]["arguments"] += (
+                                    tc.function.arguments
+                                )
+
+                # Content tokens — only stream during final (non-tool) turns
+                if delta.content and not is_tool_turn:
+                    content_acc.append(delta.content)
+                    to_emit = think_filter.push(delta.content)
+                    if to_emit:
+                        yield {"type": "token", "content": to_emit}
+
+            # Flush any buffered content at end of stream
+            if not is_tool_turn:
+                remaining = think_filter.flush()
+                if remaining:
+                    yield {"type": "token", "content": remaining}
+
+            full_content = "".join(content_acc)
+            full_reasoning = "".join(reasoning_acc) or think_filter.get_reasoning()
+            if full_reasoning:
+                thinking_traces.append(full_reasoning.strip())
+
+            if is_tool_turn:
+                sorted_tcs = [tool_calls_map[i] for i in sorted(tool_calls_map)]
+                history.append(
+                    {
+                        "role": "assistant",
+                        "content": full_content or None,
+                        "tool_calls": [
+                            {
+                                "id": tc["id"],
+                                "type": "function",
+                                "function": {
+                                    "name": tc["name"],
+                                    "arguments": tc["arguments"],
+                                },
+                            }
+                            for tc in sorted_tcs
+                        ],
+                    }
+                )
+                for tc in sorted_tcs:
+                    args = json.loads(tc["arguments"])
+                    query = args["query"]
+                    yield {"type": "searching", "query": query}
+                    result = self._search(query)
+                    logger.debug("Tool call %s → %d chars", tc["id"], len(result))
+                    history.append(
+                        {"role": "tool", "tool_call_id": tc["id"], "content": result}
+                    )
+            else:
+                clean = re.sub(
+                    r"<think>.*?</think>", "", full_content, flags=re.DOTALL
+                ).strip()
+                history.append({"role": "assistant", "content": clean or full_content})
+                if thinking_traces:
+                    yield {
+                        "type": "thinking",
+                        "content": "\n\n---\n\n".join(thinking_traces),
+                    }
+                yield {"type": "done"}
+                return
 
     # ------------------------------------------------------------------
     # Internal helpers
