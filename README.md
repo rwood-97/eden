@@ -171,10 +171,10 @@ python -m eden.rag.cli chat --persist-dir data/chroma
 | `--backend` | `ollama` (default), `openai`, or `azure` |
 | `-v` | Verbose logging |
 
-Example — chat using a local Ollama model:
+Example — chat using a local OpenAI model:
 
 ```bash
-python -m eden.rag.cli chat --persist-dir data/chroma
+python -m eden.rag.cli chat --persist-dir data/chroma --model gpt-oss-20b --backend openai
 ```
 
 > **Note:** Ollama tool-calling support varies by model. Use models that support it (e.g. `qwen3.5:4b`, `llama3.1`, `llama3.2`, `mistral-nemo`).
