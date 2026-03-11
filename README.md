@@ -120,10 +120,10 @@ Output is written to `data/synth/` as a JSONL file named `{source_type}_{model}_
 | `--overwrite` | Overwrite existing output file |
 | `-v` | Verbose logging |
 
-Example — generate QA pairs from records using OpenAI:
+Example — generate QA pairs from plant records using OpenAI:
 
 ```bash
-python -m eden.synth_data_generation.generate_synthetic_queries --pairs-per-record 2 --backend openai --model gpt-oss-120b -v
+python -m eden.synth_data_generation.generate_synthetic_queries --source-type plants --pairs-per-record 2 --backend openai --model gpt-oss-120b -v
 ```
 
 ### Fine-tuning 
