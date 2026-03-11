@@ -4,7 +4,7 @@
 [![PyPI version][pypi-version]][pypi-link]
 [![PyPI platforms][pypi-platforms]][pypi-link]
 
-A repo containing code related to fine-tuning Eden (a LLM for gardening advice).
+A repo containing code related to fine-tuning and serving Eden (a LLM for gardening advice).
 
 ## Installation
 
@@ -96,9 +96,11 @@ For `ollama` backend, no API key is required. Ensure Ollama is running locally (
 OLLAMA_BASE_URL=http://localhost:11434/v1   # optional, this is the default
 ```
 
-## Synthetic data generation
+## Fine-tuning
 
-Generate synthetic QA pairs using:
+### Synthetic data generation
+
+For fine-tuning, generate synthetic QA pairs using:
 
 ```bash
 python -m eden.synth_data_generation.generate_synthetic_queries
@@ -118,11 +120,15 @@ Output is written to `data/synth/` as a JSONL file named `{source_type}_{model}_
 | `--overwrite` | Overwrite existing output file |
 | `-v` | Verbose logging |
 
-Example — generate QA pairs from 5 advice records using Ollama:
+Example — generate QA pairs from records using OpenAI:
 
 ```bash
-python -m eden.synth_data_generation.generate_synthetic_queries --n-records 5 --pairs-per-record 2 --source-type advice -v
+python -m eden.synth_data_generation.generate_synthetic_queries --pairs-per-record 2 --backend openai --model gpt-oss-120b -v
 ```
+
+### Fine-tuning 
+
+Work in progress...
 
 ## RAG pipeline
 
