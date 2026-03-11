@@ -598,11 +598,12 @@
     async function send() {
       const text = inputEl.value.trim();
       if (!text || !activeId) return;
+      const threadId = activeId;
       inputEl.value = '';
       inputEl.style.height = 'auto';
       sendBtn.disabled = true;
-      if (threads[activeId].messages.length === 0) {
-        setThreadName(activeId, text);
+      if (threads[threadId].messages.length === 0) {
+        setThreadName(threadId, text);
         renderSidebar();
       }
       appendMessage('user', escapeHtml(text));
@@ -619,7 +620,7 @@
         const res = await fetch('/chat/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text, thread_id: activeId }),
+          body: JSON.stringify({ message: text, thread_id: threadId }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
 
@@ -639,10 +640,12 @@
             let event;
             try { event = JSON.parse(line.slice(6)); } catch { continue; }
 
+            const isActive = activeId === threadId;
+
             if (event.type === 'searching') {
-              thinkingEl.querySelector('span').textContent = `Searching: ${event.query}`;
+              if (isActive) thinkingEl.querySelector('span').textContent = `Searching: ${event.query}`;
             } else if (event.type === 'token') {
-              if (!assistantEl) {
+              if (!assistantEl && isActive) {
                 removeThinking();
                 assistantEl = document.createElement('div');
                 assistantEl.className = 'msg assistant';
@@ -650,17 +653,21 @@
                 chatEl.appendChild(assistantEl);
               }
               accText += event.content;
-              assistantEl.innerHTML = marked.parse(accText);
-              chatEl.scrollTop = chatEl.scrollHeight;
+              if (assistantEl && isActive) {
+                assistantEl.innerHTML = marked.parse(accText);
+                chatEl.scrollTop = chatEl.scrollHeight;
+              }
             } else if (event.type === 'thinking') {
-              const traceEl = makeThinkingTrace(event.content);
-              chatEl.insertBefore(traceEl, assistantEl);
-              threads[activeId].messages.push({ role: 'thinking', html: event.content });
+              if (isActive) {
+                const traceEl = makeThinkingTrace(event.content);
+                chatEl.insertBefore(traceEl, assistantEl);
+              }
+              threads[threadId].messages.push({ role: 'thinking', html: event.content });
               saveThreads(threads);
             } else if (event.type === 'done') {
               removeThinking();
-              if (assistantEl) {
-                threads[activeId].messages.push({ role: 'assistant', html: marked.parse(accText) });
+              if (accText) {
+                threads[threadId].messages.push({ role: 'assistant', html: marked.parse(accText) });
                 saveThreads(threads);
               }
             }
@@ -668,7 +675,9 @@
         }
       } catch (err) {
         removeThinking();
-        appendMessage('assistant', `<em style="color:#b03030">Error: ${escapeHtml(err.message)}</em>`);
+        if (activeId === threadId) {
+          appendMessage('assistant', `<em style="color:#b03030">Error: ${escapeHtml(err.message)}</em>`);
+        }
       } finally {
         sendBtn.disabled = false;
         inputEl.focus();
