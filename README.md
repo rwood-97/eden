@@ -126,7 +126,7 @@ Example — generate QA pairs from plant records using OpenAI:
 python -m eden.synth_data_generation.generate_synthetic_queries --source-type plants --pairs-per-record 2 --backend openai --model gpt-oss-120b -v
 ```
 
-### Fine-tuning 
+### Fine-tuning
 
 Work in progress...
 

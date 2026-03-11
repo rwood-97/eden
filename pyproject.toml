@@ -76,6 +76,9 @@ port.exclude_lines = [
 
 
 
+[tool.setuptools.package-data]
+eden = ["rag/static/*"]
+
 [tool.ruff]
 src = ["src"]
 exclude = []
