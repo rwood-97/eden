@@ -375,8 +375,8 @@
       background: var(--bg);
       border-top: 1px solid var(--border-soft);
       display: flex;
-      gap: 10px;
-      align-items: flex-end;
+      flex-direction: column;
+      gap: 8px;
       flex-shrink: 0;
     }
 
@@ -415,9 +415,10 @@
       cursor: pointer;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 7px;
       transition: background .16s, box-shadow .16s, transform .1s;
-      white-space: nowrap;
+      width: 100%;
     }
     #send-btn:hover {
       background: var(--sage);
