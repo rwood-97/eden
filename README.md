@@ -218,7 +218,7 @@ Distributed under the terms of the [MIT license](LICENSE).
 
 ## Disclaimer
 
-This work has been co-developed using Claude code and is based upon the [t0-1](https://github.com/alan-turing-institute/t0-1) repo.
+This work has been developed using Claude code and is based upon the [t0-1](https://github.com/alan-turing-institute/t0-1) repo.
 
 <!-- prettier-ignore-start -->
 [actions-badge]:            https://github.com/rwood-97/eden/workflows/CI/badge.svg
