@@ -87,8 +87,8 @@ def generate_qa_pairs(
     save_path: Path = DEFAULT_SAVE_PATH,
     source_path: Path = DEFAULT_SOURCE_DATA_DIR / "advice.jsonl",
     source_type: str = "advice",
-    model: str = "qwen3.5:4b",
-    backend: str = "ollama",
+    model: str = "Qwen/Qwen3.5-397B-A17B",
+    backend: str = "openai",
     overwrite: bool = False,
 ) -> None:
     """Generate synthetic QA pairs from scraped RHS data.
@@ -248,10 +248,10 @@ def main(
     source_type: Annotated[
         str, typer.Option(help="advice | plants | pests")
     ] = "advice",
-    model: Annotated[str, typer.Option(help="Model name")] = "qwen3.5:4b",
+    model: Annotated[str, typer.Option(help="Model name")] = "Qwen/Qwen3.5-397B-A17B",
     backend: Annotated[
         str, typer.Option(help="API backend: openai, azure, or ollama")
-    ] = "ollama",
+    ] = "openai",
     overwrite: Annotated[bool, typer.Option(help="Overwrite existing output")] = False,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging")] = False,
 ) -> None:
