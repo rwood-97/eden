@@ -52,6 +52,7 @@ def get_retriever(
     collection = db.get_or_create_collection(
         name="gardening_knowledge",
         embedding_function=ef,
+        metadata={"hnsw:space": "cosine"},
     )
 
     return collection, text_splitter
