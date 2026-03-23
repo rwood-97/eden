@@ -646,22 +646,23 @@
             if (event.type === 'searching') {
               if (isActive) thinkingEl.querySelector('span').textContent = `Searching: ${event.query}`;
             } else if (event.type === 'token') {
-              if (!assistantEl && isActive) {
-                removeThinking();
-                assistantEl = document.createElement('div');
-                assistantEl.className = 'msg assistant';
-                assistantEl.style.animation = 'up .2s cubic-bezier(.22,.61,.36,1) both';
-                chatEl.appendChild(assistantEl);
-              }
               accText += event.content;
-              if (assistantEl && isActive) {
+              if (isActive) {
+                if (!assistantEl || !assistantEl.isConnected) {
+                  removeThinking();
+                  assistantEl = document.createElement('div');
+                  assistantEl.className = 'msg assistant';
+                  assistantEl.style.animation = 'up .2s cubic-bezier(.22,.61,.36,1) both';
+                  chatEl.appendChild(assistantEl);
+                }
                 assistantEl.innerHTML = marked.parse(accText);
                 chatEl.scrollTop = chatEl.scrollHeight;
               }
             } else if (event.type === 'thinking') {
               if (isActive) {
                 const traceEl = makeThinkingTrace(event.content);
-                chatEl.insertBefore(traceEl, assistantEl);
+                const ref = assistantEl && assistantEl.isConnected ? assistantEl : null;
+                chatEl.insertBefore(traceEl, ref);
               }
               threads[threadId].messages.push({ role: 'thinking', html: event.content });
               saveThreads(threads);
@@ -670,6 +671,13 @@
               if (accText) {
                 threads[threadId].messages.push({ role: 'assistant', html: marked.parse(accText) });
                 saveThreads(threads);
+                if (isActive && (!assistantEl || !assistantEl.isConnected)) {
+                  const el = document.createElement('div');
+                  el.className = 'msg assistant';
+                  chatEl.appendChild(el);
+                  el.innerHTML = marked.parse(accText);
+                  chatEl.scrollTop = chatEl.scrollHeight;
+                }
               }
             }
           }
