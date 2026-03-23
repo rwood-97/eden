@@ -10,6 +10,9 @@ COPY pyproject.toml .
 COPY src/ src/
 RUN uv pip install --system ".[rag,server]"
 
+# Pre-download embedding model
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-mpnet-base-v2')"
+
 # Copy pre-built Chroma index.
 # Build it locally first with:
 #   eden-rag build-index --source-dir data/raw --persist-dir data/chroma
