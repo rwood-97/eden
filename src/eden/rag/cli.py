@@ -30,6 +30,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = typer.Typer(help="Eden RAG pipeline CLI.")
 

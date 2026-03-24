@@ -13,5 +13,6 @@ __pycache__/
 htmlcov/
 .coverage
 data/raw/
+data/chroma/
 data/synth/
 tests/
