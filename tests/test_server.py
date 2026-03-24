@@ -13,10 +13,11 @@ from eden.rag.server import app, configure
 
 
 @pytest.fixture(autouse=True)
-def _reset_rag():
-    """Ensure _rag is reset to None between tests."""
+def _reset_rag(monkeypatch):
+    """Ensure _rag is reset to None between tests and EDEN_PASSWORD is unset."""
     import eden.rag.server as srv
 
+    monkeypatch.delenv("EDEN_PASSWORD", raising=False)
     original = srv._rag
     yield
     srv._rag = original
