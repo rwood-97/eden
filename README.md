@@ -31,6 +31,8 @@ Optional dependency groups:
 |-------|----------|-----------------|
 | `rag` | `chromadb`, `sentence-transformers` | RAG pipeline (build index, chat) |
 | `server` | `fastapi`, `uvicorn` | Web chat UI |
+| `cpu` | `torch` (CPU-only) | Container / cloud deployments without GPU |
+| `gpu` | `torch` (CUDA) | Local development with GPU |
 | `dev` | `pytest`, `pre-commit` | Development |
 
 Install specific groups:

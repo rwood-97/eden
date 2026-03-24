@@ -47,6 +47,12 @@ server = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",
 ]
+cpu = [
+  "torch>=2.0",
+]
+gpu = [
+  "torch>=2.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/rwood-97/eden"
@@ -75,6 +81,16 @@ port.exclude_lines = [
 ]
 
 
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [tool.setuptools.package-data]
 eden = ["rag/static/*"]

@@ -11,7 +11,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy project files and install dependencies from lockfile
 COPY pyproject.toml uv.lock ./
 COPY src/ src/
-RUN uv sync --extra rag --extra server
+RUN uv sync --extra rag --extra server --extra cpu
 
 # Pre-download embedding model
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-mpnet-base-v2')"
