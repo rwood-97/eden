@@ -208,6 +208,54 @@ Example — web chat using a local Ollama model:
 python -m eden.rag.cli serve --persist-dir data/chroma
 ```
 
+## Container deployment
+
+### Prerequisites
+
+The container requires a Linux-built Chroma index. Build it using:
+
+```bash
+podman run --rm -v $(pwd)/data:/app/data eden \
+  python -m eden.rag.cli build-index --source-dir data/raw --persist-dir data/chroma_linux
+```
+
+This writes the index to `data/chroma_linux/`, which is copied into the image at build time.
+
+### Build and push the image
+
+```bash
+podman build -t ghcr.io/<your-github-username>/eden:latest .
+podman push ghcr.io/<your-github-username>/eden:latest
+```
+
+### Run the container
+
+The following environment variables must be set at runtime:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AZURE_OPENAI_API_BASE` | Yes | Azure OpenAI deployments base URL, e.g. `https://<resource>.openai.azure.com/openai/deployments/` |
+| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
+| `EDEN_PASSWORD` | No | If set, all `/chat` and `/chat/stream` requests must include an `X-Password` header matching this value |
+
+Example (local):
+
+```bash
+podman run -p 8080:8080 \
+  -e AZURE_OPENAI_API_BASE=https://<resource>.openai.azure.com/openai/deployments/ \
+  -e AZURE_OPENAI_API_KEY=<key> \
+  -e EDEN_PASSWORD=<password> \
+  ghcr.io/<your-github-username>/eden:latest
+```
+
+### Password protection
+
+When `EDEN_PASSWORD` is set, the server requires an `X-Password` header on all chat requests. The `/auth` endpoint can be used to validate a password before making chat requests:
+
+```bash
+curl -X POST http://localhost:8080/auth -H "X-Password: <password>"
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on how to contribute.
