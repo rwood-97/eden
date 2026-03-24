@@ -430,6 +430,18 @@
 </head>
 <body>
 
+  <div id="auth-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;display:flex;align-items:center;justify-content:center;">
+    <div style="background:#1a1a1a;border:1px solid #333;border-radius:12px;padding:2rem;width:320px;display:flex;flex-direction:column;gap:1rem;">
+      <h2 style="margin:0;font-size:1.2rem;color:#e8e8e8;">Eden</h2>
+      <p style="margin:0;color:#888;font-size:0.9rem;">Enter password to continue</p>
+      <input id="auth-input" type="password" placeholder="Password" autofocus
+        style="padding:0.6rem 0.8rem;border-radius:8px;border:1px solid #444;background:#111;color:#e8e8e8;font-size:1rem;outline:none;" />
+      <p id="auth-error" style="margin:0;color:#e05;font-size:0.85rem;display:none;">Incorrect password</p>
+      <button id="auth-btn"
+        style="padding:0.6rem;border-radius:8px;border:none;background:#4a7c59;color:#fff;font-size:1rem;cursor:pointer;">Unlock</button>
+    </div>
+  </div>
+
   <nav id="sidebar">
     <div class="sidebar-header">
       <div class="brand">
@@ -620,7 +632,7 @@
       try {
         const res = await fetch('/chat/stream', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Password': _password },
           body: JSON.stringify({ message: text, thread_id: threadId }),
         });
         if (!res.ok) throw new Error(`Server error ${res.status}`);
@@ -715,6 +727,44 @@
     renderSidebar();
     renderChat();
     inputEl.focus();
+
+    // --- Auth ---
+    let _password = sessionStorage.getItem('eden_pw') || '';
+    const overlay = document.getElementById('auth-overlay');
+    const authInput = document.getElementById('auth-input');
+    const authBtn = document.getElementById('auth-btn');
+    const authError = document.getElementById('auth-error');
+
+    async function tryAuth(pw) {
+      const res = await fetch('/auth', { method: 'POST', headers: { 'X-Password': pw } });
+      return res.ok;
+    }
+
+    async function initAuth() {
+      if (_password && await tryAuth(_password)) { overlay.style.display = 'none'; return; }
+      _password = '';
+      sessionStorage.removeItem('eden_pw');
+      overlay.style.display = 'flex';
+      authInput.focus();
+    }
+
+    async function submitAuth() {
+      const pw = authInput.value;
+      if (!pw) return;
+      if (await tryAuth(pw)) {
+        _password = pw;
+        sessionStorage.setItem('eden_pw', pw);
+        overlay.style.display = 'none';
+        authError.style.display = 'none';
+      } else {
+        authError.style.display = 'block';
+        authInput.select();
+      }
+    }
+
+    authBtn.addEventListener('click', submitAuth);
+    authInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+    initAuth();
   </script>
 </body>
 </html>
