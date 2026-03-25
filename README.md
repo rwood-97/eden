@@ -236,16 +236,16 @@ The following environment variables must be set at runtime:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `AZURE_OPENAI_API_BASE` | Yes | Azure OpenAI deployments base URL, e.g. `https://<resource>.openai.azure.com/openai/deployments/` |
-| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
+| `OPENAI_API_BASE` | Yes | OpenAI-compatible API base URL, e.g. `https://<resource>.services.ai.azure.com/models` |
+| `OPENAI_API_KEY` | Yes | API key |
 | `EDEN_PASSWORD` | No | If set, all `/chat` and `/chat/stream` requests must include an `X-Password` header matching this value |
 
 Example (local):
 
 ```bash
-podman run -p 8080:8080 \
-  -e AZURE_OPENAI_API_BASE=https://<resource>.openai.azure.com/openai/deployments/ \
-  -e AZURE_OPENAI_API_KEY=<key> \
+podman run -p 8080:80 \
+  -e OPENAI_API_BASE=https://<resource>.services.ai.azure.com/models \
+  -e OPENAI_API_KEY=<key> \
   -e EDEN_PASSWORD=<password> \
   ghcr.io/<your-github-username>/eden:latest
 ```
