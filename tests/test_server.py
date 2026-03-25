@@ -13,10 +13,11 @@ from eden.rag.server import app, configure
 
 
 @pytest.fixture(autouse=True)
-def _reset_rag():
-    """Ensure _rag is reset to None between tests."""
+def _reset_rag(monkeypatch):
+    """Ensure _rag is reset to None between tests and EDEN_PASSWORD is unset."""
     import eden.rag.server as srv
 
+    monkeypatch.delenv("EDEN_PASSWORD", raising=False)
     original = srv._rag
     yield
     srv._rag = original
@@ -253,3 +254,89 @@ def test_chat_stream_missing_message_returns_422(stream_client):
     client, _ = stream_client
     response = client.post("/chat/stream", json={})
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# POST /auth
+# ---------------------------------------------------------------------------
+
+
+def test_auth_returns_ok_when_no_password_set(client, monkeypatch):
+    monkeypatch.delenv("EDEN_PASSWORD", raising=False)
+    response = client.post("/auth")
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_auth_returns_ok_with_correct_password(client, monkeypatch):
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post("/auth", headers={"X-Password": "secret"})
+    assert response.status_code == 200
+    assert response.json() == {"ok": True}
+
+
+def test_auth_returns_401_with_wrong_password(client, monkeypatch):
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post("/auth", headers={"X-Password": "wrong"})
+    assert response.status_code == 401
+
+
+def test_auth_returns_401_with_no_header(client, monkeypatch):
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post("/auth")
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Password protection on /chat and /chat/stream
+# ---------------------------------------------------------------------------
+
+
+def test_chat_returns_401_with_wrong_password(configured_client, monkeypatch):
+    client, _ = configured_client
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post(
+        "/chat", json={"message": "Hello"}, headers={"X-Password": "wrong"}
+    )
+    assert response.status_code == 401
+
+
+def test_chat_returns_401_with_no_password_header(configured_client, monkeypatch):
+    client, _ = configured_client
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post("/chat", json={"message": "Hello"})
+    assert response.status_code == 401
+
+
+def test_chat_succeeds_with_correct_password(configured_client, monkeypatch):
+    client, _ = configured_client
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post(
+        "/chat", json={"message": "Hello"}, headers={"X-Password": "secret"}
+    )
+    assert response.status_code == 200
+
+
+def test_chat_succeeds_with_no_password_set(configured_client, monkeypatch):
+    client, _ = configured_client
+    monkeypatch.delenv("EDEN_PASSWORD", raising=False)
+    response = client.post("/chat", json={"message": "Hello"})
+    assert response.status_code == 200
+
+
+def test_chat_stream_returns_401_with_wrong_password(stream_client, monkeypatch):
+    client, _ = stream_client
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post(
+        "/chat/stream", json={"message": "Hello"}, headers={"X-Password": "wrong"}
+    )
+    assert response.status_code == 401
+
+
+def test_chat_stream_succeeds_with_correct_password(stream_client, monkeypatch):
+    client, _ = stream_client
+    monkeypatch.setenv("EDEN_PASSWORD", "secret")
+    response = client.post(
+        "/chat/stream", json={"message": "Hello"}, headers={"X-Password": "secret"}
+    )
+    assert response.status_code == 200
