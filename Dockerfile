@@ -29,4 +29,4 @@ CMD ["python", "-m", "eden.rag.cli", "serve", \
      "--host", "0.0.0.0", \
      "--port", "80", \
      "--backend", "azure", \
-     "--model", "gpt-4o"]
+     "--model", "o4-mini"]
