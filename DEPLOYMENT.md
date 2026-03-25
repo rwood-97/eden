@@ -12,8 +12,9 @@ The following environment variables must be set (e.g. in a `.env` file):
 
 ```bash
 GITHUB_PERSONAL_ACCESS_TOKEN=...
-OPENAI_API_BASE=https://<resource>.services.ai.azure.com/models
-OPENAI_API_KEY=...
+AZURE_OPENAI_API_BASE=https://<resource>.cognitiveservices.azure.com/openai/deployments
+AZURE_OPENAI_API_KEY=...
+EDEN_PASSWORD=...
 ```
 
 ## 1. Build the Linux Chroma index
@@ -70,10 +71,10 @@ az containerapp create \
   --registry-server ghcr.io \
   --registry-username <your-username> \
   --registry-password "$GITHUB_PERSONAL_ACCESS_TOKEN" \
-  --secrets "openai-key=$OPENAI_API_KEY" "eden-pw=<password>" \
+  --secrets "azure-key=$AZURE_OPENAI_API_KEY" "eden-pw=$EDEN_PASSWORD" \
   --env-vars \
-    "OPENAI_API_BASE=$OPENAI_API_BASE" \
-    "OPENAI_API_KEY=secretref:openai-key" \
+    "AZURE_OPENAI_API_BASE=$AZURE_OPENAI_API_BASE" \
+    "AZURE_OPENAI_API_KEY=secretref:azure-key" \
     "EDEN_PASSWORD=secretref:eden-pw"
 ```
 
@@ -97,4 +98,4 @@ az containerapp update \
 Azure Container Apps (and ACI) block port 8080 at the network level. The container must serve on port 80. The Dockerfile and `serve` command use `--port 80`.
 
 ### Environment variables
-The code reads `OPENAI_API_BASE` and `OPENAI_API_KEY` (not `AZURE_OPENAI_*`). Use Container Apps secrets for sensitive values.
+The azure backend reads `AZURE_OPENAI_API_BASE` and `AZURE_OPENAI_API_KEY`. Use Container Apps secrets for sensitive values rather than plain environment variables.

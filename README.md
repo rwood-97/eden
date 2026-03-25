@@ -88,7 +88,7 @@ OPENAI_API_KEY=<your-api-key>         # optional, defaults to "EMPTY"
 For `azure` backend:
 
 ```bash
-AZURE_OPENAI_ENDPOINT=<your-azure-endpoint>
+AZURE_OPENAI_API_BASE=<your-azure-deployments-base-url>  # e.g. https://<resource>.cognitiveservices.azure.com/openai/deployments
 AZURE_OPENAI_API_KEY=<your-azure-api-key>
 ```
 
@@ -236,16 +236,16 @@ The following environment variables must be set at runtime:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `OPENAI_API_BASE` | Yes | OpenAI-compatible API base URL, e.g. `https://<resource>.services.ai.azure.com/models` |
-| `OPENAI_API_KEY` | Yes | API key |
+| `AZURE_OPENAI_API_BASE` | Yes | Azure deployments base URL, e.g. `https://<resource>.cognitiveservices.azure.com/openai/deployments` |
+| `AZURE_OPENAI_API_KEY` | Yes | Azure OpenAI API key |
 | `EDEN_PASSWORD` | No | If set, all `/chat` and `/chat/stream` requests must include an `X-Password` header matching this value |
 
 Example (local):
 
 ```bash
 podman run -p 8080:80 \
-  -e OPENAI_API_BASE=https://<resource>.services.ai.azure.com/models \
-  -e OPENAI_API_KEY=<key> \
+  -e AZURE_OPENAI_API_BASE=https://<resource>.cognitiveservices.azure.com/openai/deployments \
+  -e AZURE_OPENAI_API_KEY=<key> \
   -e EDEN_PASSWORD=<password> \
   ghcr.io/<your-github-username>/eden:latest
 ```

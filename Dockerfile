@@ -24,10 +24,9 @@ EXPOSE 80
 
 # AZURE_OPENAI_API_BASE and AZURE_OPENAI_API_KEY must be set at runtime,
 # e.g. via Azure Container Apps secrets / environment variables.
-# Override --model to match your Azure deployment name.
 CMD ["python", "-m", "eden.rag.cli", "serve", \
      "--persist-dir", "data/chroma", \
      "--host", "0.0.0.0", \
      "--port", "80", \
-     "--backend", "openai", \
-     "--model", "mistral-small-2503"]
+     "--backend", "azure", \
+     "--model", "gpt-4o"]
