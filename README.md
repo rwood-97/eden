@@ -100,36 +100,6 @@ OLLAMA_BASE_URL=http://localhost:11434/v1   # optional, this is the default
 
 ## Fine-tuning
 
-### Synthetic data generation
-
-For fine-tuning, generate synthetic QA pairs using:
-
-```bash
-python -m eden.synth_data_generation.generate_synthetic_queries
-```
-
-Output is written to `data/synth/` as a JSONL file named `{source_type}_{model}_{n_records}rec_{pairs_per_record}pairs.jsonl`.
-
-| Flag | Description |
-|------|-------------|
-| `--source-type` | `advice` (default), `plants`, or `pests` |
-| `--n-records N` | Number of source records to sample (default: all) |
-| `--pairs-per-record N` | QA pairs per record (default: 5) |
-| `--model NAME` | Model name for the API (default: `qwen3.5:4b`) |
-| `--backend` | `ollama` (default), `openai`, or `azure` |
-| `--source-path PATH` | Source JSONL file (default: `data/raw/{source_type}.jsonl`) |
-| `--save-path PATH` | Output directory (default: `data/synth/`) |
-| `--overwrite` | Overwrite existing output file |
-| `-v` | Verbose logging |
-
-Example — generate QA pairs from plant records using OpenAI:
-
-```bash
-python -m eden.synth_data_generation.generate_synthetic_queries --source-type plants --pairs-per-record 2 --backend openai --model gpt-oss-120b -v
-```
-
-### Fine-tuning
-
 Work in progress...
 
 ## RAG pipeline
