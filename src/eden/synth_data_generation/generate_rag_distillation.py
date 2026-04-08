@@ -396,7 +396,7 @@ def generate_rag_distillation(
     chroma_dir: Path = DEFAULT_CHROMA_DIR,
     template_path: Path = DEFAULT_TEMPLATE,
     save_path: Path = DEFAULT_SAVE_PATH,
-    model: str = "Qwen/Qwen3.5-72B-Instruct",
+    model: str = "Qwen/Qwen3.5-122B-A10B-FP8",
     backend: str = "openai",
     k: int = 4,
     n_records: int | None = None,
@@ -405,6 +405,7 @@ def generate_rag_distillation(
     max_concurrent: int = 8,
     enable_thinking: bool = True,
     overwrite: bool = False,
+    timeout: float = 600.0,
 ) -> None:
     """Generate SFT distillation data using RAG context and reasoning traces.
 
@@ -421,7 +422,7 @@ def generate_rag_distillation(
     save_path:
         Output directory.
     model:
-        Large model to use for answering (e.g. ``Qwen/Qwen3.5-72B-Instruct``).
+        Large model to use for answering (e.g. ``Qwen/Qwen3.5-122B-A10B-FP8``).
     backend:
         API backend: ``"openai"``, ``"azure"``, or ``"ollama"``.
     k:
@@ -438,6 +439,8 @@ def generate_rag_distillation(
         Pass ``enable_thinking=True`` in the request body (Qwen3 vLLM).
     overwrite:
         Overwrite existing output file.
+    timeout:
+        HTTP timeout in seconds for each LLM request. Increase for slow local models.
     """
     save_path = Path(save_path)
     chroma_dir = Path(chroma_dir)
@@ -449,9 +452,10 @@ def generate_rag_distillation(
         client = make_client(
             base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
             api_key="ollama",
+            timeout=timeout,
         )
     else:
-        client = make_client()
+        client = make_client(timeout=timeout)
 
     # Load Chroma retriever
     config = RetrieverConfig(
@@ -578,9 +582,9 @@ def main(
     model: Annotated[
         str,
         typer.Option(
-            help="Model to use for answering (e.g. 'Qwen/Qwen3.5-72B-Instruct')"
+            help="Model to use for answering (e.g. 'Qwen/Qwen3.5-122B-A10B-FP8')"
         ),
-    ] = "Qwen/Qwen3.5-72B-Instruct",
+    ] = "Qwen/Qwen3.5-122B-A10B-FP8",
     backend: Annotated[
         str, typer.Option(help="API backend: openai, azure, or ollama")
     ] = "openai",
@@ -604,6 +608,12 @@ def main(
     overwrite: Annotated[
         bool, typer.Option(help="Overwrite existing output file")
     ] = False,
+    timeout: Annotated[
+        float,
+        typer.Option(
+            help="HTTP timeout in seconds per LLM request (increase for slow local models)"
+        ),
+    ] = 600.0,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging")] = False,
 ) -> None:
     """Generate SFT distillation data with RAG context and reasoning traces."""
@@ -635,6 +645,7 @@ def main(
         max_concurrent=max_concurrent,
         enable_thinking=enable_thinking,
         overwrite=overwrite,
+        timeout=timeout,
     )
 
 

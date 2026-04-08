@@ -18,7 +18,7 @@ def test_make_client_uses_explicit_args():
         make_client(base_url="http://localhost:8000", api_key="sk-test")
 
         mock_openai.assert_called_once_with(
-            base_url="http://localhost:8000", api_key="sk-test"
+            base_url="http://localhost:8000", api_key="sk-test", timeout=600.0
         )
 
 
@@ -32,7 +32,7 @@ def test_make_client_reads_base_url_from_env(monkeypatch):
         make_client()
 
         mock_openai.assert_called_once_with(
-            base_url="http://env-host/v1", api_key="sk-env"
+            base_url="http://env-host/v1", api_key="sk-env", timeout=600.0
         )
 
 
@@ -113,6 +113,19 @@ def test_get_tool_response_returns_none_on_exception():
 
     mock_client = MagicMock()
     mock_client.chat.completions.create.side_effect = RuntimeError("API down")
+
+    result = get_tool_response(mock_client, "prompt", "model", _TOOL)
+
+    assert result is None
+
+
+def test_get_tool_response_returns_none_when_tool_calls_is_none():
+    from eden.openai_client import get_tool_response
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value.choices[
+        0
+    ].message.tool_calls = None
 
     result = get_tool_response(mock_client, "prompt", "model", _TOOL)
 

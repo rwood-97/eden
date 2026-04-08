@@ -101,7 +101,7 @@ OLLAMA_BASE_URL=http://localhost:11434/v1   # optional, this is the default
 
 Fine-tuning uses knowledge distillation (i.e. A large model generates questions, uses the RAG pipeline to generate conversations which are then used to fine-tune a smaller model).
 
-The default large model is the Qwen3.5-72B-Instruct model.
+The default large model is Qwen3.5-122B-A10B-FP8. Uses the official FP8 checkpoint, which fits on 4x H100 80GB GPUs (~122GB) with ~198GB free for KV cache and batching.
 
 ### Synthetic data generation
 
@@ -118,7 +118,7 @@ python -m eden.synth_data_generation.generate_rag_distillation \
     --source-type advice \
     --source-dir data/raw \
     --chroma-dir data/chroma \
-    --model Qwen/Qwen3.5-72B-Instruct \
+    --model Qwen/Qwen3.5-122B-A10B-FP8 \
     --save-path data/sft/
 ```
 
@@ -130,7 +130,7 @@ Key options:
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--source-type` | `advice`, `plants`, or `pests` | `advice` |
-| `--model` | Large model for answering | `Qwen/Qwen3.5-72B-Instruct` |
+| `--model` | Large model for answering | `Qwen/Qwen3.5-122B-A10B-FP8` |
 | `--backend` | `openai`, `azure`, or `ollama` | `openai` |
 | `--k` | Chunks retrieved per question | `4` |
 | `--n-records` | Source records to sample (default: all) | all |

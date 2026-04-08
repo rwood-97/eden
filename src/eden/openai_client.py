@@ -6,7 +6,9 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 
-def make_client(base_url: str | None = None, api_key: str | None = None) -> OpenAI:
+def make_client(
+    base_url: str | None = None, api_key: str | None = None, timeout: float = 600.0
+) -> OpenAI:
     """Create an OpenAI-compatible client.
 
     Parameters
@@ -17,10 +19,12 @@ def make_client(base_url: str | None = None, api_key: str | None = None) -> Open
     api_key:
         API key. Defaults to ``OPENAI_API_KEY`` env var, or ``"EMPTY"`` for
         local servers that don't require auth.
+    timeout:
+        Request timeout in seconds. Increase for slow local models. Defaults to 600.
     """
     base_url = base_url or os.environ.get("OPENAI_API_BASE", "http://localhost:8000/v1")
     api_key = api_key or os.environ.get("OPENAI_API_KEY", "EMPTY")
-    return OpenAI(base_url=base_url, api_key=api_key)
+    return OpenAI(base_url=base_url, api_key=api_key, timeout=timeout)
 
 
 def get_tool_response(
@@ -55,7 +59,13 @@ def get_tool_response(
             tools=[tool],
             tool_choice={"type": "function", "function": {"name": tool_name}},
         )
-        return response.choices[0].message.tool_calls[0].function.arguments
+        tool_calls = response.choices[0].message.tool_calls
+        if not tool_calls:
+            logger.debug(
+                "Model did not return tool calls (model may not support function calling)"
+            )
+            return None
+        return tool_calls[0].function.arguments
     except Exception:
         logger.exception("API call failed")
         return None
