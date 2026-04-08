@@ -20,22 +20,21 @@ uv venv --python=3.12
 source .venv/bin/activate
 ```
 
-Then install the package:
+Then install the package with all extras:
 ```
 uv sync --all-extras
 ```
 
-Optional dependency groups:
+This will install all optional dependency groups:
 
 | Group | Contents | When to install |
 |-------|----------|-----------------|
 | `rag` | `chromadb`, `sentence-transformers` | RAG pipeline (build index, chat) |
 | `server` | `fastapi`, `uvicorn` | Web chat UI |
-| `cpu` | `torch` (CPU-only) | Container / cloud deployments without GPU |
-| `gpu` | `torch` (CUDA) | Local development with GPU |
+| `training` | `torch`, `transformers`, `trl`, `accelerate`, `datasets` | SFT fine-tuning |
 | `dev` | `pytest`, `pre-commit` | Development |
 
-Install specific groups:
+If you prefer you can install specific groups using:
 ```bash
 uv sync --extra rag --extra server
 ```
@@ -100,7 +99,87 @@ OLLAMA_BASE_URL=http://localhost:11434/v1   # optional, this is the default
 
 ## Fine-tuning
 
-Work in progress...
+Fine-tuning uses knowledge distillation (i.e. A large model generates questions, uses the RAG pipeline to generate conversations which are then used to fine-tune a smaller model).
+
+The default large model is the Qwen3.5-72B-Instruct model.
+
+### Synthetic data generation
+
+Install training dependencies from the `training` extra group:
+
+```bash
+uv sync --extra training
+```
+
+Then generate synthetic data from raw RHS content:
+
+```bash
+python -m eden.synth_data_generation.generate_rag_distillation \
+    --source-type advice \
+    --source-dir data/raw \
+    --chroma-dir data/chroma \
+    --model Qwen/Qwen3.5-72B-Instruct \
+    --save-path data/sft/
+```
+
+You will need to repeat this for `--source-type plants` and `--source-type pests`.
+By default, output is written to `data/sft/sft_{source_type}_{model}.jsonl`.
+
+Key options:
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--source-type` | `advice`, `plants`, or `pests` | `advice` |
+| `--model` | Large model for answering | `Qwen/Qwen3.5-72B-Instruct` |
+| `--backend` | `openai`, `azure`, or `ollama` | `openai` |
+| `--k` | Chunks retrieved per question | `4` |
+| `--n-records` | Source records to sample (default: all) | all |
+| `--pairs-per-record` | Questions generated per source record | `5` |
+| `--cross-doc-fraction` | Fraction of cross-document questions | `0.4` |
+| `--max-concurrent` | Concurrent LLM requests | `8` |
+| `--enable-thinking` | Request reasoning traces from the model | `True` |
+
+### Fine-tuning Qwen3.5-4B
+
+Training uses TRL `SFTTrainer` with PyTorch FSDP via `accelerate`.
+
+Before running anything, you should edit `training/sft_config.yaml` to match your desired setup. The defaults are set to train Qwen/Qwen3.5-4B-Instruct for 3 epochs.
+
+Key config values in `training/sft_config.yaml`:
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `model_name` | HuggingFace model ID | `Qwen/Qwen3.5-4B-Instruct` |
+| `data_paths` | List of SFT JSONL files | — |
+| `output_dir` | Where to save the fine-tuned model | `models/qwen3.5-4b-eden/` |
+| `num_train_epochs` | Training epochs | `3` |
+| `max_seq_length` | Max tokens per example | `4096` |
+| `per_device_train_batch_size` | Batch size per GPU | `4` |
+| `gradient_accumulation_steps` | Gradient accumulation | `4` |
+| `learning_rate` | Peak learning rate | `1e-5` |
+| `eval_split` | Fraction held out for evaluation | `0.10` |
+| `report_to` | Logging backend (`wandb`, `tensorboard`, `none`) | `wandb` |
+
+Then launch your SLURM training script, the train command should look something like this:
+
+```bash
+NUM_GPUS=$((SLURM_NNODES * SLURM_GPUS_PER_NODE))
+accelerate launch \
+    --config_file training/fsdp_config.yaml \
+    --num_machines $SLURM_NNODES \
+    --num_processes $NUM_GPUS \
+    --machine_rank $SLURM_NODEID \
+    --main_process_ip $MASTER_ADDR \
+    --main_process_port $MASTER_PORT \
+    training/sft_train.py --config training/sft_config.yaml
+```
+
+For a single-GPU smoke-test (no SLURM):
+
+```bash
+accelerate launch --num_processes 1 training/sft_train.py \
+    --config training/sft_config.yaml --max-steps 5
+```
 
 ## RAG pipeline
 

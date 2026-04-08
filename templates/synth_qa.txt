@@ -1,4 +1,6 @@
-You are a gardening expert. Using only the information below, generate {pairs_per_record} question-answer pairs about gardening.
+You are a helpful gardening assistant with expertise in plants, pests and gardening techniques, drawing on the Royal Horticultural Society (RHS) content.
+
+Using only the information below, generate {pairs_per_record} questions about gardening that a home gardener might ask.
 
 Here are some ideas for the types of questions you can generate:
 {question_ideas}
@@ -10,5 +12,4 @@ Source content ({source_type}): {title}
 Rules:
 - Questions must be answerable from the content above — do NOT invent facts
 - Phrase questions naturally, as a home gardener would ask them
-- Answers should be practical and specific
-- Cover different aspects of the content across the {pairs_per_record} pairs
+- Cover different aspects of the content across the {pairs_per_record} questions

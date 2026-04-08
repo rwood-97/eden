@@ -47,11 +47,15 @@ server = [
   "fastapi>=0.110",
   "uvicorn[standard]>=0.29",
 ]
-cpu = [
+training = [
   "torch>=2.0",
-]
-gpu = [
-  "torch>=2.0",
+  "transformers>=4.51",
+  "trl>=0.16",
+  "accelerate>=1.6",
+  "datasets>=3.0",
+  "pyyaml>=6.0",
+  "chromadb>=1.5,<2",
+  "sentence-transformers>=5.2,<6",
 ]
 
 [project.urls]
@@ -71,6 +75,9 @@ log_cli_level = "INFO"
 testpaths = [
   "tests",
 ]
+pythonpath = [
+  ".",
+]
 
 [tool.coverage]
 run.source = ["eden"]
@@ -80,17 +87,6 @@ port.exclude_lines = [
   'if typing.TYPE_CHECKING:',
 ]
 
-
-
-[tool.uv.sources]
-torch = [
-  { index = "pytorch-cpu", extra = "cpu" },
-]
-
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
 
 [tool.setuptools.package-data]
 eden = ["rag/static/*"]

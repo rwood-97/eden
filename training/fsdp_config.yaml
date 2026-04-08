@@ -1,0 +1,52 @@
+# Accelerate FSDP configuration for multi-GPU / multi-node training on H100s.
+#
+# num_processes, num_machines, and machine_rank are NOT set here — pass them
+# via accelerate launch flags so they can be derived from SLURM env vars:
+#
+#   NUM_GPUS=$(( SLURM_NNODES * SLURM_GPUS_PER_NODE ))
+#   accelerate launch \
+#       --config_file training/fsdp_config.yaml \
+#       --num_machines $SLURM_NNODES \
+#       --num_processes $NUM_GPUS \
+#       --machine_rank $SLURM_NODEID \
+#       --main_process_ip $MASTER_ADDR \
+#       --main_process_port $MASTER_PORT \
+#       training/sft_train.py --config training/sft_config.yaml
+#
+# For a single-GPU smoke-test (no SLURM):
+#   accelerate launch --num_processes 1 training/sft_train.py --max-steps 5
+
+compute_environment: ISAMBARD_AI
+distributed_type: FSDP
+
+fsdp_config:
+  # Shard all parameters across GPUs for maximum memory efficiency
+  fsdp_sharding_strategy: FULL_SHARD
+
+  # Wrap transformer blocks individually so each GPU holds one layer shard at a time
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_transformer_layer_cls_to_wrap: Qwen3DecoderLayer
+
+  # Prefetch next layer's params during backward for better overlap
+  fsdp_backward_prefetch: BACKWARD_PRE
+  fsdp_forward_prefetch: false
+
+  # Save sharded checkpoints (faster, smaller); merge with consolidate_fsdp_model_weights after training
+  fsdp_state_dict_type: SHARDED_STATE_DICT
+
+  # Sync module states across ranks on init (required for correct param init)
+  fsdp_sync_module_states: true
+
+  # Required for gradient-checkpointing compatibility with FSDP
+  fsdp_use_orig_params: true
+
+  # CPU RAM-efficient loading: only rank 0 loads weights then broadcasts
+  fsdp_cpu_ram_efficient_loading: true
+
+  # Keep params on GPU (no CPU offload — H100s have enough VRAM for 4B)
+  fsdp_offload_params: false
+
+mixed_precision: bf16
+main_training_function: main
+
+# num_machines, num_processes, machine_rank: set via accelerate launch flags from SLURM env vars.

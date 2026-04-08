@@ -73,7 +73,7 @@ SYSTEM_PROMPT = (
     "simple greetings or clarifications that require no factual lookup."
 )
 
-_TOOL_SCHEMA = {
+TOOL_SCHEMA = {
     "type": "function",
     "function": {
         "name": "search_gardening_knowledge",
@@ -258,7 +258,7 @@ class RAG:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=history,
-                tools=[_TOOL_SCHEMA],
+                tools=[TOOL_SCHEMA],
                 tool_choice="auto",
             )
             msg = response.choices[0].message
@@ -323,7 +323,7 @@ class RAG:
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=history,
-                tools=[_TOOL_SCHEMA],
+                tools=[TOOL_SCHEMA],
                 tool_choice="auto",
                 stream=True,
             )

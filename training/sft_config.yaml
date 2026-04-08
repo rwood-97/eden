@@ -1,0 +1,71 @@
+# SFT training configuration for Qwen3.5-4B on Eden distillation data.
+# All values can be overridden via CLI flags on sft_train.py.
+
+# ---------------------------------------------------------------------------
+# Model
+# ---------------------------------------------------------------------------
+model_name: Qwen/Qwen3.5-4B-Instruct
+
+# ---------------------------------------------------------------------------
+# Data  — list all SFT JSONL files to combine
+# ---------------------------------------------------------------------------
+data_paths:
+  - data/sft/sft_advice_Qwen_Qwen3.5-72B-Instruct.jsonl
+  - data/sft/sft_plants_Qwen_Qwen3.5-72B-Instruct.jsonl
+  - data/sft/sft_pests_Qwen_Qwen3.5-72B-Instruct.jsonl
+
+# ---------------------------------------------------------------------------
+# Output
+# ---------------------------------------------------------------------------
+output_dir: models/qwen3.5-4b-eden/
+run_name: eden-sft-qwen3.5-4b
+
+# ---------------------------------------------------------------------------
+# Sequence length
+# ---------------------------------------------------------------------------
+max_seq_length: 4096
+
+# ---------------------------------------------------------------------------
+# Training schedule
+# ---------------------------------------------------------------------------
+num_train_epochs: 3
+# max_steps: -1   # set on CLI for smoke-tests; -1 means use num_train_epochs
+
+# ---------------------------------------------------------------------------
+# Batch sizes
+# Effective batch size = per_device * gradient_accumulation_steps * num_gpus
+# e.g. with 4 GPUs: 4 * 4 * 4 = 64; with 8 GPUs: 4 * 4 * 8 = 128
+# ---------------------------------------------------------------------------
+per_device_train_batch_size: 4
+per_device_eval_batch_size: 4
+gradient_accumulation_steps: 4
+
+# ---------------------------------------------------------------------------
+# Optimisation
+# ---------------------------------------------------------------------------
+learning_rate: 1.0e-5
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+weight_decay: 0.01
+
+# ---------------------------------------------------------------------------
+# Memory & precision
+# ---------------------------------------------------------------------------
+bf16: true
+gradient_checkpointing: true
+packing: true   # sequence packing for throughput
+
+# ---------------------------------------------------------------------------
+# Evaluation & checkpointing
+# ---------------------------------------------------------------------------
+eval_split: 0.10
+eval_steps: 500
+save_steps: 500
+save_total_limit: 3
+load_best_model_at_end: true
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging_steps: 10
+report_to: wandb   # "none", "wandb" or "tensorboard"
