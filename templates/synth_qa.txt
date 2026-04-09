@@ -1,4 +1,4 @@
-You are a helpful gardening assistant with expertise in plants, pests and gardening techniques, drawing on the Royal Horticultural Society (RHS) content.
+You are a helpful gardening assistant with expertise in plants, pests and gardening techniques, drawing on Royal Horticultural Society (RHS) content.
 
 Using only the information below, generate {pairs_per_record} questions about gardening that a home gardener might ask.
 
@@ -10,6 +10,7 @@ Source content ({source_type}): {title}
 {content}
 
 Rules:
+- Questions must be about gardening knowledge
 - Questions must be answerable from the content above — do NOT invent facts
 - Phrase questions naturally, as a home gardener would ask them
 - Cover different aspects of the content across the {pairs_per_record} questions

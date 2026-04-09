@@ -199,14 +199,17 @@ def _generate_cross_doc_questions(
             qs = json.loads(raw)["questions"]
         except (json.JSONDecodeError, KeyError):
             continue
+        source_titles = [get_title(r, source_type) for r in group]
+        source_urls = [r.get("url", "") for r in group]
+        source_page_types = [get_page_type(r, source_type) for r in group]
         for q in qs:
             if isinstance(q, str) and q.strip():
                 questions.append(
                     {
                         "question": q.strip(),
-                        "source_title": "",
-                        "source_url": "",
-                        "page_type": "",
+                        "source_titles": source_titles,
+                        "source_urls": source_urls,
+                        "page_types": source_page_types,
                         "source_type": source_type,
                         "question_type": "cross_document",
                     }
@@ -336,20 +339,26 @@ async def _answer_question(
                 )
                 history.append({"role": "assistant", "content": assistant_content})
 
-                return {
+                record: dict = {
                     "question": question,
                     "messages": history,  # full tool-calling conversation for SFT
                     "context_chunks": all_chunks,
                     "reasoning": reasoning,
                     "response": cleaned,
-                    "source_title": question_data.get("source_title", ""),
-                    "source_url": question_data.get("source_url", ""),
-                    "page_type": question_data.get("page_type", ""),
                     "source_type": question_data.get("source_type", ""),
                     "question_type": question_data.get("question_type", ""),
                     "model": model,
                     "generated_at": datetime.datetime.now(tz=datetime.UTC).isoformat(),
                 }
+                if question_data.get("question_type") == "cross_document":
+                    record["source_titles"] = question_data.get("source_titles", [])
+                    record["source_urls"] = question_data.get("source_urls", [])
+                    record["page_types"] = question_data.get("page_types", [])
+                else:
+                    record["source_title"] = question_data.get("source_title", "")
+                    record["source_url"] = question_data.get("source_url", "")
+                    record["page_type"] = question_data.get("page_type", "")
+                return record
 
 
 async def _run_answering(
@@ -406,6 +415,7 @@ def generate_rag_distillation(
     enable_thinking: bool = True,
     overwrite: bool = False,
     timeout: float = 600.0,
+    questions_checkpoint: Path | None = None,
 ) -> None:
     """Generate SFT distillation data using RAG context and reasoning traces.
 
@@ -468,56 +478,80 @@ def generate_rag_distillation(
     collection, _ = get_retriever(config)
 
     # ---------------------------------------------------------------------------
-    # Step 1: Generate questions
+    # Step 1: Generate questions (or load from checkpoint)
     # ---------------------------------------------------------------------------
-    source_path = Path(source_dir) / f"{source_type}.jsonl"
-    logger.info("Generating questions from %s", source_path)
+    save_path.mkdir(parents=True, exist_ok=True)
 
-    with open(source_path) as f:
-        all_records = [json.loads(line) for line in f if line.strip()]
+    if questions_checkpoint is None:
+        nr_tag = str(n_records) if n_records is not None else "all"
+        cdf_tag = str(cross_doc_fraction).replace(".", "p")
+        questions_checkpoint = (
+            save_path
+            / f"questions_{source_type}_{nr_tag}rec_{pairs_per_record}ppr_{cdf_tag}cdf.jsonl"
+        )
 
-    if source_type == "plants":
-        all_records = [
-            r
-            for r in all_records
-            if any(
-                r.get(k, "").strip() for k in ("cultivation", "pruning", "propagation")
-            )
-        ]
+    if questions_checkpoint.exists():
+        logger.info("Loading questions from checkpoint: %s", questions_checkpoint)
+        with open(questions_checkpoint) as f:
+            questions = [json.loads(line) for line in f if line.strip()]
+        logger.info("Loaded %d questions from checkpoint", len(questions))
+    else:
+        source_path = Path(source_dir) / f"{source_type}.jsonl"
+        logger.info("Generating questions from %s", source_path)
 
-    if n_records is not None:
-        all_records = random.sample(all_records, min(n_records, len(all_records)))
-    logger.info("Using %d source records", len(all_records))
+        with open(source_path) as f:
+            all_records = [json.loads(line) for line in f if line.strip()]
 
-    url_to_record = {r.get("url", ""): r for r in all_records if r.get("url")}
+        if source_type == "plants":
+            all_records = [
+                r
+                for r in all_records
+                if any(
+                    r.get(k, "").strip()
+                    for k in ("cultivation", "pruning", "propagation")
+                )
+            ]
 
-    template = load_template(Path(template_path), source_type, pairs_per_record)
-    per_doc_qs = _generate_per_doc_questions(
-        all_records, source_type, template, client, model
-    )
+        if n_records is not None:
+            all_records = random.sample(all_records, min(n_records, len(all_records)))
+        logger.info("Using %d source records", len(all_records))
 
-    # Cross-document questions — groups formed by embedding similarity via Chroma.
-    target_cross = int(len(per_doc_qs) * cross_doc_fraction / (1 - cross_doc_fraction))
-    n_groups = max(1, target_cross // 3)
-    cross_doc_qs = _generate_cross_doc_questions(
-        all_records,
-        source_type,
-        client,
-        model,
-        n_questions=3,
-        n_groups=n_groups,
-        collection=collection,
-        url_to_record=url_to_record,
-    )
+        url_to_record = {r.get("url", ""): r for r in all_records if r.get("url")}
 
-    questions = per_doc_qs + cross_doc_qs
-    random.shuffle(questions)
-    logger.info(
-        "Generated %d questions (%d per-doc, %d cross-doc)",
-        len(questions),
-        len(per_doc_qs),
-        len(cross_doc_qs),
-    )
+        template = load_template(Path(template_path), source_type, pairs_per_record)
+        per_doc_qs = _generate_per_doc_questions(
+            all_records, source_type, template, client, model
+        )
+
+        # Cross-document questions — groups formed by embedding similarity via Chroma.
+        target_cross = int(
+            len(per_doc_qs) * cross_doc_fraction / (1 - cross_doc_fraction)
+        )
+        n_groups = max(1, target_cross // 3)
+        cross_doc_qs = _generate_cross_doc_questions(
+            all_records,
+            source_type,
+            client,
+            model,
+            n_questions=3,
+            n_groups=n_groups,
+            collection=collection,
+            url_to_record=url_to_record,
+        )
+
+        questions = per_doc_qs + cross_doc_qs
+        random.shuffle(questions)
+        logger.info(
+            "Generated %d questions (%d per-doc, %d cross-doc)",
+            len(questions),
+            len(per_doc_qs),
+            len(cross_doc_qs),
+        )
+
+        with open(questions_checkpoint, "w") as f:
+            for q in questions:
+                f.write(json.dumps(q) + "\n")
+        logger.info("Saved questions checkpoint: %s", questions_checkpoint)
 
     # ---------------------------------------------------------------------------
     # Step 2: Answer questions with RAG context + reasoning
@@ -614,6 +648,12 @@ def main(
             help="HTTP timeout in seconds per LLM request (increase for slow local models)"
         ),
     ] = 600.0,
+    questions_checkpoint: Annotated[
+        Path | None,
+        typer.Option(
+            help="Path to questions checkpoint JSONL. Default is auto-generated based on parameters."
+        ),
+    ] = None,
     verbose: Annotated[bool, typer.Option("-v", help="Verbose logging")] = False,
 ) -> None:
     """Generate SFT distillation data with RAG context and reasoning traces."""
@@ -646,6 +686,7 @@ def main(
         enable_thinking=enable_thinking,
         overwrite=overwrite,
         timeout=timeout,
+        questions_checkpoint=questions_checkpoint,
     )
 
 
