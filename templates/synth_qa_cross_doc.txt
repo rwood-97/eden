@@ -1,16 +1,13 @@
-Below is a RHS gardening record.
+Below are {n_records} RHS gardening records on related topics.
 
-Source content ({source_type}): {title}
+{record_blocks}
 
-{content}
+Generate {n_questions} questions that require synthesising information from more than one of the records above to answer fully.
 
-Generate {pairs_per_record} questions that require synthesising information from the information above.
-
-{question_ideas_block}
 Rules:
 - Questions must be about gardening knowledge and be practical, specific, and useful to a gardener
-- Questions must be answerable from the content above — do NOT invent facts
+- Questions must require information from more than one record above to answer fully — do NOT invent facts
 - Phrase questions naturally, as a home gardener would ask them
-- Cover different aspects of the content across the {pairs_per_record} questions
+- Cover different aspects across the {n_questions} questions
 - Always name the plant(s) explicitly in the question — never use vague references like "this plant", "these plants", "it", or "both plants"
 - Vary how you refer to plants across questions: use the common name, the RHS cultivar format (e.g. apple 'Honeycrisp'), the Latin/botanical name (e.g. Malus domestica), or a recognised nickname — do not default to the same format every time

@@ -49,6 +49,7 @@ DEFAULT_SAVE_PATH = Path("./data/sft/")
 DEFAULT_SOURCE_DATA_DIR = Path("./data/raw/")
 DEFAULT_CHROMA_DIR = Path("./data/chroma/")
 DEFAULT_TEMPLATE = Path("./templates/synth_qa.txt")
+DEFAULT_CROSS_DOC_TEMPLATE = Path("./templates/synth_qa_cross_doc.txt")
 
 # ---------------------------------------------------------------------------
 # Tool schemas for question generation
@@ -78,25 +79,28 @@ def load_template(template_path: Path, source_type: str, pairs_per_record: int) 
     """Load the prompt template and fill in the static placeholders."""
     template = template_path.read_text()
     ideas_path = template_path.parent / f"question_ideas_{source_type}.txt"
-    question_ideas = ideas_path.read_text().strip()
-    template = template.replace("{question_ideas}", question_ideas)
+    if ideas_path.exists():
+        question_ideas = ideas_path.read_text().strip()
+        ideas_block = f"Here are some ideas for the types of questions you can generate:\n{question_ideas}\n\n"
+    else:
+        ideas_block = ""
+    template = template.replace("{question_ideas_block}", ideas_block)
     template = template.replace("{source_type}", source_type)
     return template.replace("{pairs_per_record}", str(pairs_per_record))
 
 
-def _cross_doc_prompt(records: list[dict], source_type: str, n_questions: int) -> str:
+def _cross_doc_prompt(
+    records: list[dict], source_type: str, n_questions: int, template: str
+) -> str:
     blocks = []
     for i, record in enumerate(records, 1):
         title = get_title(record, source_type)
         content = flatten_record(record, source_type)
         blocks.append(f"Record {i}: {title}\n{content[:800]}")
-    combined = "\n\n".join(blocks)
     return (
-        f"Below are {len(records)} RHS gardening records on related topics.\n\n"
-        f"{combined}\n\n"
-        f"Generate {n_questions} questions that require synthesising information "
-        f"from more than one of the records above to answer fully. "
-        f"Questions should be practical, specific, and useful to a gardener."
+        template.replace("{n_records}", str(len(records)))
+        .replace("{record_blocks}", "\n\n".join(blocks))
+        .replace("{n_questions}", str(n_questions))
     )
 
 
@@ -155,6 +159,7 @@ def _generate_cross_doc_questions(
     n_groups: int,
     collection: Any,
     url_to_record: dict[str, dict],
+    cross_doc_template: str,
     group_size: int = 3,
 ) -> list[dict]:
     """Generate questions that span multiple semantically related records.
@@ -191,7 +196,7 @@ def _generate_cross_doc_questions(
             # Not enough distinct neighbours — fall back to seed + random pick.
             group = [seed, random.choice(records)]
 
-        prompt = _cross_doc_prompt(group, source_type, n_questions)
+        prompt = _cross_doc_prompt(group, source_type, n_questions, cross_doc_template)
         raw = get_tool_response(client, prompt, model, _QUESTION_TOOL)
         if raw is None:
             continue
@@ -404,6 +409,7 @@ def generate_rag_distillation(
     source_dir: Path = DEFAULT_SOURCE_DATA_DIR,
     chroma_dir: Path = DEFAULT_CHROMA_DIR,
     template_path: Path = DEFAULT_TEMPLATE,
+    cross_doc_template_path: Path = DEFAULT_CROSS_DOC_TEMPLATE,
     save_path: Path = DEFAULT_SAVE_PATH,
     model: str = "Qwen/Qwen3.5-122B-A10B-FP8",
     backend: str = "openai",
@@ -519,6 +525,7 @@ def generate_rag_distillation(
         url_to_record = {r.get("url", ""): r for r in all_records if r.get("url")}
 
         template = load_template(Path(template_path), source_type, pairs_per_record)
+        cross_doc_template = Path(cross_doc_template_path).read_text()
         per_doc_qs = _generate_per_doc_questions(
             all_records, source_type, template, client, model
         )
@@ -537,6 +544,7 @@ def generate_rag_distillation(
             n_groups=n_groups,
             collection=collection,
             url_to_record=url_to_record,
+            cross_doc_template=cross_doc_template,
         )
 
         questions = per_doc_qs + cross_doc_qs
@@ -610,6 +618,10 @@ def main(
     template_path: Annotated[
         Path, typer.Option(help="Path to question generation prompt template")
     ] = DEFAULT_TEMPLATE,
+    cross_doc_template_path: Annotated[
+        Path,
+        typer.Option(help="Path to cross-document question generation prompt template"),
+    ] = DEFAULT_CROSS_DOC_TEMPLATE,
     save_path: Annotated[
         Path, typer.Option(help="Output directory")
     ] = DEFAULT_SAVE_PATH,
@@ -675,6 +687,7 @@ def main(
         source_dir=source_dir,
         chroma_dir=chroma_dir,
         template_path=template_path,
+        cross_doc_template_path=cross_doc_template_path,
         save_path=save_path,
         model=model,
         backend=backend,
