@@ -186,6 +186,10 @@ def index_documents(
         )
 
     chunks = text_splitter.split_documents(documents)
+    for chunk in chunks:
+        title = chunk["metadata"].get("title", "")
+        if title and not chunk["page_content"].startswith(f"# {title}"):
+            chunk["page_content"] = f"# {title}\n\n" + chunk["page_content"]
     logger.info("Indexing %d chunks from %d documents...", len(chunks), len(documents))
     batch_size = 5000
     for i in range(0, len(chunks), batch_size):
